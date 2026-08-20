@@ -23,6 +23,7 @@ class TmdbApiService {
   private buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith('/') ? path.slice(1) : path
     const searchParams = new URLSearchParams()
+    searchParams.set('path', normalizedPath)
 
     if (query) {
       for (const [key, value] of Object.entries(query)) {
@@ -30,8 +31,7 @@ class TmdbApiService {
       }
     }
 
-    const queryString = searchParams.toString()
-    return `${this.basePath}/${normalizedPath}${queryString ? `?${queryString}` : ''}`
+    return `${this.basePath}?${searchParams.toString()}`
   }
 }
 
