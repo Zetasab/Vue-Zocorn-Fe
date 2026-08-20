@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 import MoviesScroller from '../../components/MoviesScroller.vue'
-import { authService } from '../../services/authService'
 import { tmdbApiService } from '../../services/tmdbApiService'
 
 type TmdbMovie = {
@@ -73,7 +72,6 @@ const upcomingMovies = ref<ScrollerMovie[]>([])
 const movieGenres = ref<TmdbGenre[]>([])
 const selectedTrendWindow = ref<TrendWindow>('day')
 const isHomeLoading = ref(true)
-const router = useRouter()
 let heroVideoTimeoutId: number | undefined
 let heroVideoProgressIntervalId: number | undefined
 
@@ -276,12 +274,6 @@ const nextUpcomingMovie = computed<ScrollerMovie>(() => {
 
 onMounted(async () => {
   isHomeLoading.value = true
-
-  const isValidLogin = await authService.checkLogin()
-  if (!isValidLogin) {
-    await router.replace({ name: 'login' })
-    return
-  }
 
   await Promise.allSettled([
     loadNowPlayingMovies(),

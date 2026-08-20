@@ -2,11 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MoviesScroller from '../../components/MoviesScroller.vue'
-import type { MovieSummary } from '../../models/MovieSummary'
 import { tmdbApiService } from '../../services/tmdbApiService'
-import { watchedMoviesService } from '../../services/watchedMoviesService'
-import { wishlistMoviesService } from '../../services/wishlistMoviesService'
-import { authService } from '../../services/authService'
 
 type MovieGenre = {
 	id: number
@@ -274,132 +270,12 @@ const formattedDuration = computed(() => {
 	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 })
 
-const seenMovieIds = ref<Set<number>>(new Set())
-const watchLaterMovieIds = ref<Set<number>>(new Set())
-const isSeenPending = ref(false)
-const isWatchPending = ref(false)
-const isSuccessSnackbarOpen = ref(false)
-const successSnackbarMessage = ref('')
-const isViewer = computed(() => (authService.getSession()?.role ?? '').trim().toLowerCase() === 'viewer')
-
 function formatCurrency(amount: number): string {
 	return new Intl.NumberFormat('en-US', {
 		style: 'currency',
 		currency: 'USD',
 		maximumFractionDigits: 0
 	}).format(amount)
-}
-
-function isSeen(movieId: number): boolean {
-	return seenMovieIds.value.has(movieId)
-}
-
-function isWatchLater(movieId: number): boolean {
-	return watchLaterMovieIds.value.has(movieId)
-}
-
-function buildMovieSummary(): MovieSummary | null {
-	if (!movie.value) {
-		return null
-	}
-
-	return {
-		id: movie.value.id,
-		title: movie.value.title ?? null,
-		original_title: movie.value.original_title ?? movie.value.title ?? null,
-		overview: movie.value.overview ?? null,
-		poster_path: movie.value.poster_path ?? null,
-		backdrop_path: movie.value.backdrop_path ?? null,
-		release_date: movie.value.release_date ?? null,
-		vote_average: movie.value.vote_average ?? 0,
-		vote_count: movie.value.vote_count ?? 0,
-		popularity: movie.value.popularity ?? 0,
-		original_language: movie.value.original_language ?? null,
-		genre_ids: movie.value.genres?.map((genre) => genre.id) ?? [],
-		adult: false,
-		video: false
-	}
-}
-
-async function syncMovieStates(movieId: number): Promise<void> {
-	try {
-		const [watchedIds, wishlistIds] = await Promise.all([
-			watchedMoviesService.getMovieIdsList(),
-			wishlistMoviesService.getMovieIdsList()
-		])
-
-		seenMovieIds.value = new Set(watchedIds)
-		watchLaterMovieIds.value = new Set(wishlistIds)
-
-		if (!watchedIds.includes(movieId)) {
-			seenMovieIds.value.delete(movieId)
-		}
-
-		if (!wishlistIds.includes(movieId)) {
-			watchLaterMovieIds.value.delete(movieId)
-		}
-	} catch {
-		seenMovieIds.value = new Set()
-		watchLaterMovieIds.value = new Set()
-	}
-}
-
-async function toggleSeen(): Promise<void> {
-	if (!movie.value || isSeenPending.value) {
-		return
-	}
-
-	const movieId = movie.value.id
-	const movieSummary = buildMovieSummary()
-	if (!movieSummary) {
-		isSeenPending.value = false
-		return
-	}
-	isSeenPending.value = true
-
-	try {
-		if (seenMovieIds.value.has(movieId)) {
-			await watchedMoviesService.deleteMovie(movieId)
-			seenMovieIds.value.delete(movieId)
-		} else {
-			await watchedMoviesService.addMovie(movieSummary)
-			seenMovieIds.value.add(movieId)
-		}
-
-		successSnackbarMessage.value = 'Guardado correctamente'
-		isSuccessSnackbarOpen.value = true
-	} finally {
-		isSeenPending.value = false
-	}
-}
-
-async function toggleWatch(): Promise<void> {
-	if (!movie.value || isWatchPending.value) {
-		return
-	}
-
-	const movieId = movie.value.id
-	const movieSummary = buildMovieSummary()
-	if (!movieSummary) {
-		isWatchPending.value = false
-		return
-	}
-	isWatchPending.value = true
-
-	try {
-		if (watchLaterMovieIds.value.has(movieId)) {
-			await wishlistMoviesService.deleteMovie(movieId)
-			watchLaterMovieIds.value.delete(movieId)
-		} else {
-			await wishlistMoviesService.addMovie(movieSummary)
-			watchLaterMovieIds.value.add(movieId)
-		}
-
-		successSnackbarMessage.value = 'Guardado correctamente'
-		isSuccessSnackbarOpen.value = true
-	} finally {
-		isWatchPending.value = false
-	}
 }
 
 function companyLogoUrl(logoPath: string | null): string {
@@ -572,8 +448,6 @@ async function loadMovieDetails(): Promise<void> {
 	clearHeaderVideoTimer()
 	selectedImagePath.value = null
 	isImageDialogOpen.value = false
-	isSeenPending.value = false
-	isWatchPending.value = false
 
 	try {
 		const [movieData, credits, videos, images, recommendations, similar] = await Promise.all([
@@ -586,7 +460,6 @@ async function loadMovieDetails(): Promise<void> {
 		])
 
 		movie.value = movieData
-		await syncMovieStates(movieData.id)
 		castMembers.value = credits.cast ?? []
 		movieVideos.value = videos.results ?? []
 		const uniqueImages = [...(images.backdrops ?? []), ...(images.posters ?? [])].filter(
@@ -688,19 +561,6 @@ onBeforeUnmount(() => {
 					</div>
 				</div>
 
-				<div v-if="!isViewer" class="detailed-movie-title-actions">
-					<button class="detailed-movie-action detailed-movie-action--seen"
-						:class="{ 'is-active': isSeen(movie.id) }" :disabled="isSeenPending" type="button"
-						aria-label="Marcar como vista" @click.stop="toggleSeen()">
-						<v-icon :icon="isSeen(movie.id) ? 'mdi-check-circle' : 'mdi-check-circle-outline'" size="20" />
-					</button>
-
-					<button class="detailed-movie-action detailed-movie-action--watch"
-						:class="{ 'is-active': isWatchLater(movie.id) }" :disabled="isWatchPending" type="button"
-						aria-label="Añadir a quiero ver" @click.stop="toggleWatch()">
-						<v-icon :icon="isWatchLater(movie.id) ? 'mdi-bookmark' : 'mdi-bookmark-plus-outline'" size="20" />
-					</button>
-				</div>
 			</div>
 		</section>
 
@@ -912,10 +772,6 @@ onBeforeUnmount(() => {
 			</v-card-actions>
 		</v-card>
 	</v-dialog>
-
-	<v-snackbar v-model="isSuccessSnackbarOpen" color="success" timeout="1800">
-		{{ successSnackbarMessage }}
-	</v-snackbar>
 </template>
 
 <style scoped src="./DetailedMovie.css"></style>

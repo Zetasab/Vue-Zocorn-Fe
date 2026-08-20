@@ -3,8 +3,6 @@ import './main.css'
 import 'lenis/dist/lenis.css'
 import App from './App.vue'
 import router from './router'
-import { authService } from './services/authService'
-import { BaseApiService } from './services/baseApiService'
 import zetaMovAppLogo from './assets/ZetaMovApp.png'
 import Lenis from 'lenis'
 
@@ -67,14 +65,6 @@ const app = createApp(App)
 if ('scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual'
 }
-
-BaseApiService.setUnauthorizedHandler(() => {
-  authService.logout()
-
-  if (router.currentRoute.value.name !== 'login') {
-    router.replace({ name: 'login' })
-  }
-})
 
 const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]') ?? document.createElement('link')
 favicon.rel = 'icon'

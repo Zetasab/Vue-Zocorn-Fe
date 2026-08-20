@@ -1,9 +1,5 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { authService } from '../services/authService'
-import type { MovieSummary } from '../models/MovieSummary'
-import { watchedMoviesService } from '../services/watchedMoviesService'
-import { wishlistMoviesService } from '../services/wishlistMoviesService'
 
 interface MovieItem {
   id: number
@@ -43,19 +39,8 @@ const pendingScrollLeft = ref<number | null>(null)
 
 const DRAG_THRESHOLD_PX = 6
 const SCROLL_DELAY_MS = 70
-const isViewer = computed(() => (authService.getSession()?.role ?? '').trim().toLowerCase() === 'viewer')
-
-const seenMovieIds = ref<Set<number>>(new Set())
-const watchLaterMovieIds = ref<Set<number>>(new Set())
-const mobileMenuMovieId = ref<number | null>(null)
 const isMobileViewport = ref(false)
-const isSuccessSnackbarOpen = ref(false)
-const successSnackbarMessage = ref('')
 const loadedPosterIds = ref<Set<number>>(new Set())
-const pendingSeenMovieIds = ref<Set<number>>(new Set())
-const pendingWatchMovieIds = ref<Set<number>>(new Set())
-
-type MovieActionType = 'seen' | 'watch'
 
 function getPosterUrl(path?: string): string {
   if (!path) {
@@ -190,127 +175,6 @@ function flushPendingScrollPosition(): void {
   pendingScrollLeft.value = null
 }
 
-function isSeen(movieId: number): boolean {
-  return seenMovieIds.value.has(movieId)
-}
-
-function isWatchLater(movieId: number): boolean {
-  return watchLaterMovieIds.value.has(movieId)
-}
-
-function isMobileMenuOpen(movieId: number): boolean {
-  return mobileMenuMovieId.value === movieId
-}
-
-function toggleMobileMenu(movieId: number): void {
-  mobileMenuMovieId.value = mobileMenuMovieId.value === movieId ? null : movieId
-}
-
-function closeMobileMenu(movieId: number): void {
-  if (mobileMenuMovieId.value === movieId) {
-    mobileMenuMovieId.value = null
-  }
-}
-
-function isSeenPending(movieId: number): boolean {
-  return pendingSeenMovieIds.value.has(movieId)
-}
-
-function isWatchPending(movieId: number): boolean {
-  return pendingWatchMovieIds.value.has(movieId)
-}
-
-function buildMovieSummary(movieId: number): MovieSummary | null {
-  const sourceMovie = props.movies.find((movie) => movie.id === movieId)
-  if (!sourceMovie) {
-    return null
-  }
-
-  return {
-    id: sourceMovie.id,
-    title: sourceMovie.title ?? null,
-    original_title: sourceMovie.original_title ?? sourceMovie.title ?? null,
-    overview: sourceMovie.overview ?? null,
-    poster_path: sourceMovie.poster_path ?? sourceMovie.posterPath ?? null,
-    backdrop_path: sourceMovie.backdrop_path ?? sourceMovie.backdropPath ?? null,
-    release_date: sourceMovie.release_date ?? null,
-    vote_average: sourceMovie.vote_average ?? 0,
-    vote_count: sourceMovie.vote_count ?? 0,
-    popularity: sourceMovie.popularity ?? 0,
-    original_language: sourceMovie.original_language ?? null,
-    genre_ids: Array.isArray(sourceMovie.genre_ids) ? sourceMovie.genre_ids : [],
-    adult: Boolean(sourceMovie.adult),
-    video: Boolean(sourceMovie.video)
-  }
-}
-
-async function toggleAction(movieId: number, action: MovieActionType): Promise<void> {
-  const pendingSet = action === 'seen' ? pendingSeenMovieIds.value : pendingWatchMovieIds.value
-  if (pendingSet.has(movieId)) {
-    return
-  }
-
-  const movieSummary = buildMovieSummary(movieId)
-  if (!movieSummary) {
-    return
-  }
-
-  pendingSet.add(movieId)
-
-  try {
-    if (action === 'seen') {
-      if (seenMovieIds.value.has(movieId)) {
-        await watchedMoviesService.deleteMovie(movieId)
-        seenMovieIds.value.delete(movieId)
-      } else {
-        await watchedMoviesService.addMovie(movieSummary)
-        seenMovieIds.value.add(movieId)
-      }
-    } else if (watchLaterMovieIds.value.has(movieId)) {
-      await wishlistMoviesService.deleteMovie(movieId)
-      watchLaterMovieIds.value.delete(movieId)
-    } else {
-      await wishlistMoviesService.addMovie(movieSummary)
-      watchLaterMovieIds.value.add(movieId)
-    }
-
-    successSnackbarMessage.value = 'Guardado correctamente'
-    isSuccessSnackbarOpen.value = true
-    closeMobileMenu(movieId)
-  } finally {
-    pendingSet.delete(movieId)
-  }
-}
-
-async function syncMovieStates(): Promise<void> {
-  if (!props.movies.length) {
-    seenMovieIds.value = new Set()
-    watchLaterMovieIds.value = new Set()
-    return
-  }
-
-  try {
-    const [watchedIds, wishlistIds] = await Promise.all([
-      watchedMoviesService.getMovieIdsList(),
-      wishlistMoviesService.getMovieIdsList()
-    ])
-
-    seenMovieIds.value = new Set(watchedIds)
-    watchLaterMovieIds.value = new Set(wishlistIds)
-  } catch {
-    seenMovieIds.value = new Set()
-    watchLaterMovieIds.value = new Set()
-  }
-}
-
-function toggleSeen(movieId: number): void {
-  void toggleAction(movieId, 'seen')
-}
-
-function toggleWatch(movieId: number): void {
-  void toggleAction(movieId, 'watch')
-}
-
 function updateViewport(): void {
   isMobileViewport.value = window.matchMedia('(max-width: 768px)').matches
 }
@@ -318,7 +182,6 @@ function updateViewport(): void {
 onMounted(() => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
-  void syncMovieStates()
 })
 
 onBeforeUnmount(() => {
@@ -330,7 +193,6 @@ watch(
   () => props.movies,
   () => {
     loadedPosterIds.value = new Set()
-    void syncMovieStates()
   },
   { immediate: true }
 )
@@ -350,12 +212,7 @@ watch(
     @mouseleave="onDragEnd"
     @dragstart.prevent
   >
-    <div
-      v-for="movie in props.movies"
-      :key="movie.id"
-      class="movie-card"
-      :class="{ 'is-mobile-menu-open': isMobileMenuOpen(movie.id) }"
-    >
+    <div v-for="movie in props.movies" :key="movie.id" class="movie-card">
       <RouterLink
         class="movie-poster-link"
         :to="{ name: 'detailed-movie', params: { idtmdb: movie.id } }"
@@ -391,49 +248,9 @@ watch(
       <div class="movie-hover-info">
         <p class="movie-hover-rating">⭐ {{ formatRating(movie.vote_average) }}</p>
         <p class="movie-overview">{{ movie.overview }}</p>
-        <div v-if="!isViewer" class="movie-actions">
-          <button
-            class="movie-action movie-action--seen"
-            :class="{ 'is-active': isSeen(movie.id) }"
-            type="button"
-            :disabled="isSeenPending(movie.id)"
-            aria-label="Marcar como vista"
-            @pointerdown.stop
-            @click.stop="toggleSeen(movie.id)"
-          >
-            <v-icon :icon="isSeen(movie.id) ? 'mdi-check-circle' : 'mdi-check-circle-outline'" size="20" />
-          </button>
-
-          <button
-            class="movie-action movie-action--watch"
-            :class="{ 'is-active': isWatchLater(movie.id) }"
-            type="button"
-            :disabled="isWatchPending(movie.id)"
-            aria-label="Añadir a quiero ver"
-            @pointerdown.stop
-            @click.stop="toggleWatch(movie.id)"
-          >
-            <v-icon :icon="isWatchLater(movie.id) ? 'mdi-bookmark' : 'mdi-bookmark-plus-outline'" size="20" />
-          </button>
-        </div>
       </div>
-
-      <button
-        class="movie-mobile-menu-toggle"
-        type="button"
-        aria-label="Abrir menú"
-        :aria-expanded="isMobileMenuOpen(movie.id)"
-        @pointerdown.stop
-        @click.stop="toggleMobileMenu(movie.id)"
-      >
-        <v-icon :icon="isMobileMenuOpen(movie.id) ? 'mdi-close' : 'mdi-dots-vertical'" size="18" />
-      </button>
     </div>
   </div>
-
-  <v-snackbar v-model="isSuccessSnackbarOpen" color="success" timeout="1800">
-    {{ successSnackbarMessage }}
-  </v-snackbar>
 </template>
 
 <style scoped>
@@ -484,11 +301,6 @@ watch(
   border-radius: 0.9rem;
   background: #091321;
   transition: transform 0.25s ease;
-}
-
-.movie-card.is-desktop-menu-open {
-  overflow: visible;
-  z-index: 9;
 }
 
 .movie-card:hover {
@@ -570,20 +382,8 @@ watch(
   pointer-events: none;
 }
 
-.movie-actions,
-.movie-action-wrapper,
-.movie-test-menu,
-.movie-action {
-  pointer-events: auto;
-}
-
 .movie-card:hover .movie-hover-info,
 .movie-card:focus-within .movie-hover-info {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.movie-card.is-desktop-menu-open .movie-hover-info {
   opacity: 1;
   transform: translateY(0);
 }
@@ -605,132 +405,6 @@ watch(
   font-size: 0.78rem;
   line-height: 1.42;
   color: #d7e2f1;
-}
-
-.movie-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-left: auto;
-}
-
-.movie-action-wrapper {
-  position: relative;
-  display: inline-flex;
-}
-
-.movie-action-wrapper.is-open {
-  z-index: 7;
-}
-
-.movie-test-menu {
-  position: absolute;
-  right: calc(100% + 0.4rem);
-  bottom: 0;
-  z-index: 5;
-  min-width: 8rem;
-  border-radius: 0.5rem;
-  padding: 0.35rem;
-  background: rgba(8, 19, 35, 0.95);
-  border: 1px solid rgba(109, 143, 194, 0.3);
-  color: #f7fbff;
-  font-size: 0.75rem;
-}
-
-.movie-menu-state {
-  padding: 0.3rem 0.4rem;
-  color: #d9e7fb;
-}
-
-.movie-dialog-section-title {
-  margin: 0.35rem 0.4rem 0.25rem;
-  font-size: 0.68rem;
-  color: #aac2e2;
-}
-
-.movie-dialog-section-title + .movie-dialog-list-item {
-  margin-bottom: 0.3rem;
-}
-
-.movie-menu-item,
-.movie-dialog-list-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  border: 0;
-  border-radius: 0.45rem;
-  padding: 0.4rem 0.5rem;
-  text-align: left;
-  background: transparent;
-  color: #f7fbff;
-  cursor: pointer;
-}
-
-.movie-menu-item.is-active,
-.movie-dialog-list-item.is-active {
-  background: rgba(34, 197, 94, 0.26);
-}
-
-.movie-dialog-list-item--private.is-active {
-  background: rgba(59, 130, 246, 0.28);
-}
-
-.movie-menu-item__check {
-  color: #22c55e;
-}
-
-.movie-dialog-list-item--private .movie-menu-item__check {
-  color: #3b82f6;
-}
-
-.movie-menu-item:hover,
-.movie-dialog-list-item:hover {
-  background: rgba(38, 63, 102, 0.4);
-}
-
-.movie-dialog-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.movie-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 0;
-  border-radius: 999px;
-  color: #f7fbff;
-  cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-.movie-action:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-}
-
-.movie-mobile-menu-toggle {
-  display: none;
-}
-
-.movie-action--seen {
-  background: #1d9f5a;
-}
-
-.movie-action--seen.is-active {
-  background: #22c55e;
-}
-
-.movie-action--watch {
-  background: #2563eb;
-}
-
-.movie-action--watch.is-active {
-  background: #3b82f6;
 }
 
 @media (max-width: 768px) {
@@ -760,63 +434,8 @@ watch(
     transform: translateY(8px);
   }
 
-  .movie-card.is-mobile-menu-open .movie-hover-info {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-
-  .movie-hover-rating,
-  .movie-overview,
-  .movie-actions {
-    transform: translateY(12px);
-    opacity: 0;
-    transition: transform 0.22s ease, opacity 0.22s ease;
-  }
-
-  .movie-card.is-mobile-menu-open .movie-hover-rating,
-  .movie-card.is-mobile-menu-open .movie-overview,
-  .movie-card.is-mobile-menu-open .movie-actions {
-    transform: translateY(0);
-    opacity: 1;
-  }
-
   .movie-hover-rating {
     font-size: 0.75rem;
-  }
-
-  .movie-actions {
-    order: -1;
-    align-self: flex-end;
-    border-radius: 999px;
-    padding: 0.2rem;
-    background: rgba(4, 14, 30, 0.9);
-  }
-
-  .movie-action:hover {
-    transform: none;
-    filter: none;
-  }
-
-  .movie-mobile-menu-toggle {
-    position: absolute;
-    right: 0.55rem;
-    bottom: 0.55rem;
-    z-index: 3;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border: 0;
-    border-radius: 999px;
-    color: #f7fbff;
-    background: rgba(8, 20, 38, 0.88);
-    cursor: pointer;
-  }
-
-  .movie-card.is-mobile-menu-open .movie-mobile-menu-toggle {
-    background: rgba(21, 39, 66, 0.96);
   }
 }
 </style>

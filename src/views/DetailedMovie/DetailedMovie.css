@@ -135,127 +135,6 @@
   gap: 0.35rem;
 }
 
-.detailed-movie-title-actions {
-  position: relative;
-  z-index: 3;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.detailed-movie-action-wrapper {
-  position: relative;
-  display: inline-flex;
-}
-
-.detailed-movie-action-wrapper.is-open {
-  z-index: 7;
-}
-
-.detailed-movie-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 0;
-  border-radius: 999px;
-  color: #f7fbff;
-  cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-.detailed-movie-action:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-}
-
-.detailed-movie-action--seen {
-  background: #1d9f5a;
-}
-
-.detailed-movie-action--seen.is-active {
-  background: #22c55e;
-}
-
-.detailed-movie-action--watch {
-  background: #2563eb;
-}
-
-.detailed-movie-action--watch.is-active {
-  background: #3b82f6;
-}
-
-.detailed-movie-action-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 0.4rem);
-  z-index: 8;
-  min-width: 12rem;
-  border-radius: 0.5rem;
-  padding: 0.35rem;
-  background: rgba(8, 19, 35, 0.95);
-  border: 1px solid rgba(109, 143, 194, 0.3);
-  color: #f7fbff;
-  font-size: 0.75rem;
-}
-
-.detailed-movie-menu-state {
-  padding: 0.3rem 0.4rem;
-  color: #d9e7fb;
-}
-
-.detailed-movie-dialog-section-title {
-  margin: 0.35rem 0.4rem 0.25rem;
-  font-size: 0.68rem;
-  color: #aac2e2;
-}
-
-.detailed-movie-dialog-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.detailed-movie-dialog-list-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  border: 0;
-  border-radius: 0.45rem;
-  padding: 0.4rem 0.5rem;
-  text-align: left;
-  background: transparent;
-  color: #f7fbff;
-  cursor: pointer;
-}
-
-.detailed-movie-dialog-list-item.is-active {
-  background: rgba(34, 197, 94, 0.26);
-}
-
-.detailed-movie-dialog-list-item--private.is-active {
-  background: rgba(59, 130, 246, 0.28);
-}
-
-.detailed-movie-dialog-list-item:hover {
-  background: rgba(38, 63, 102, 0.4);
-}
-
-.detailed-movie-menu-item-check {
-  color: #22c55e;
-}
-
-.detailed-movie-dialog-list-item--private .detailed-movie-menu-item-check {
-  color: #3b82f6;
-}
-
-.detailed-movie-dialog-card {
-  background: #08172d;
-}
-
 .detailed-movie-go-back {
   position: relative;
   z-index: 0;
@@ -625,19 +504,8 @@
     bottom: clamp(4rem, 10vh, 5.6rem);
   }
 
-  .detailed-movie-title-actions {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 0.5rem);
-  }
-
   .detailed-movie-title-row {
     align-items: flex-end;
-  }
-
-  .detailed-movie-action:hover {
-    transform: none;
-    filter: none;
   }
 
   .detailed-movie-collection {

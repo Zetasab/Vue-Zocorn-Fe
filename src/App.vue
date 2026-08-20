@@ -2,10 +2,9 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import PrimeNavbar from './components/PrimeNavbar.vue'
-import { authService } from './services/authService'
 
 const route = useRoute()
-const showNavbar = computed(() => !['login', 'privacy-policy', 'register', 'verify-email', 'forgot-password'].includes(String(route.name ?? '')))
+const showNavbar = computed(() => !['privacy-policy'].includes(String(route.name ?? '')))
 const overlayNavbarRoutes = ['home', 'search', 'my-movies', 'my-lists', 'detailed-movie']
 const isMobileViewport = ref(false)
 
@@ -32,22 +31,12 @@ const useNavbarOverlay = computed(
 )
 
 const isSocialFabOpen = ref(false)
-const isAuthenticated = ref(false)
-const showSocialFab = computed(() => showNavbar.value && isAuthenticated.value)
-
-function refreshAuthState(): void {
-  isAuthenticated.value = authService.isAuthenticated()
-}
-
-function onWindowFocus(): void {
-  refreshAuthState()
-}
+const showSocialFab = computed(() => showNavbar.value)
 
 watch(
   () => route.fullPath,
   () => {
     isSocialFabOpen.value = false
-    refreshAuthState()
   }
 )
 
@@ -56,15 +45,6 @@ function toggleSocialFab(): void {
 }
 
 const currentYear = new Date().getFullYear()
-
-onMounted(() => {
-  refreshAuthState()
-  window.addEventListener('focus', onWindowFocus)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('focus', onWindowFocus)
-})
 </script>
 
 <template>
@@ -77,14 +57,12 @@ onUnmounted(() => {
 
     <footer v-if="showNavbar" class="app-footer">
       <div class="app-footer__inner">
-        <p class="app-footer__brand">ZetaMoviesFe</p>
+        <p class="app-footer__brand">Zocorn</p>
         <nav class="app-footer__links" aria-label="Footer links">
           <RouterLink to="/">Inicio</RouterLink>
           <RouterLink to="/buscar">Buscar</RouterLink>
-          <RouterLink to="/mis-peliculas">Mis películas</RouterLink>
-          <RouterLink to="/mis-listas">Mis listas</RouterLink>
         </nav>
-        <p class="app-footer__copy">© {{ currentYear }} ZetaMoviesFe</p>
+        <p class="app-footer__copy">© {{ currentYear }} Zocorn</p>
       </div>
     </footer>
 

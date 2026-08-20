@@ -2,7 +2,6 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MoviesScroller from '../../components/MoviesScroller.vue'
-import { authService } from '../../services/authService'
 import { tmdbApiService } from '../../services/tmdbApiService'
 
 type TmdbSearchMovieItem = {
@@ -136,13 +135,6 @@ async function searchMovies(text: string, page = 1, list: MovieListFilter = 'pop
   const normalizedText = text.trim()
   const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1
   const normalizedList = parseRouteList(list)
-
-  const isValidLogin = await authService.checkLogin()
-  if (!isValidLogin) {
-    await router.replace({ name: 'login' })
-    return
-  }
-
 
   isLoading.value = true
   errorMessage.value = ''

@@ -1,44 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { authService } from '../services/authService'
+import { RouterLink, useRoute } from 'vue-router'
 import zetaMovAppLogo from '../assets/ZetaMovApp.png'
 
 const route = useRoute()
-const router = useRouter()
 
 const isMobileMenuOpen = ref(false)
-const isProfileMenuOpen = ref(false)
 const isMobileViewport = ref(false)
 const isScrolled = ref(false)
 
-const isViewer = computed(() => (authService.getSession()?.role ?? '').trim().toLowerCase() === 'viewer')
-
-const navigationLinks = computed(() => {
-  const links = [
-    { label: 'Inicio', to: '/', icon: 'mdi-home-outline' },
-    { label: 'Buscar', to: '/buscar', icon: 'mdi-magnify' }
-  ]
-
-  if (!isViewer.value) {
-    links.push({ label: 'Mis películas', to: '/mis-peliculas', icon: 'mdi-movie-open-outline' })
-  }
-
-  return links
-})
-
-const profileImg = computed(() => authService.getSession()?.profileImg ?? '')
-
-const profileInitial = computed(() => {
-  const username = authService.getSession()?.username ?? 'U'
-  return username.slice(0, 1).toUpperCase()
-})
+const navigationLinks = computed(() => [
+  { label: 'Inicio', to: '/', icon: 'mdi-home-outline' },
+  { label: 'Buscar', to: '/buscar', icon: 'mdi-magnify' }
+])
 
 watch(
   () => route.fullPath,
   () => {
     isMobileMenuOpen.value = false
-    isProfileMenuOpen.value = false
   }
 )
 
@@ -75,19 +54,7 @@ onUnmounted(() => {
   window.removeEventListener('scroll', updateScrollState)
 })
 
-async function logout(): Promise<void> {
-  isMobileMenuOpen.value = false
-  isProfileMenuOpen.value = false
-  authService.logout()
-  await router.replace({ name: 'login' })
-}
-
-async function goToProfile(): Promise<void> {
-  isProfileMenuOpen.value = false
-  await router.push('/')
-}
-
-function onProfileTriggerClick(): void {
+function onMobileMenuTriggerClick(): void {
   if (!isMobileViewport.value) {
     return
   }
@@ -101,8 +68,8 @@ function onProfileTriggerClick(): void {
     <div class="prime-navbar__inner">
       <div class="prime-navbar__left">
         <RouterLink to="/" class="brand-link" aria-label="Ir a Inicio">
-          <img :src="zetaMovAppLogo" alt="ZetaMoviesFe" class="brand-logo" />
-          <span class="brand-title">ZetaMoviesFe</span>
+          <img :src="zetaMovAppLogo" alt="Zocorn" class="brand-logo" />
+          <span class="brand-title">Zocorn</span>
         </RouterLink>
       </div>
 
@@ -118,45 +85,21 @@ function onProfileTriggerClick(): void {
           <span>{{ item.label }}</span>
         </RouterLink>
 
-        <button class="mobile-logout" type="button" @click="logout">
-          <v-icon icon="mdi-logout" size="18" />
-          <span>Logout</span>
-        </button>
       </div>
 
       <div></div>
       <div></div>
 
       <div class="prime-navbar__right">
-        <v-menu v-model="isProfileMenuOpen" :disabled="isMobileViewport" location="bottom end" offset="10">
-          <template #activator="{ props }">
-            <button
-              class="profile-trigger"
-              v-bind="props"
-              type="button"
-              :aria-expanded="isMobileMenuOpen"
-              aria-label="Abrir menú"
-              @click="onProfileTriggerClick"
-            >
-              <img v-if="profileImg" :src="profileImg" alt="Perfil" class="profile-avatar" />
-              <span v-else class="profile-avatar profile-avatar--fallback">{{ profileInitial }}</span>
-            </button>
-          </template>
-
-          <v-list class="profile-menu" density="comfortable" bg-color="#08172d">
-            <v-list-item prepend-icon="mdi-account-circle-outline" title="Perfil" @click="goToProfile" />
-            <v-divider />
-            <v-list-item
-              v-for="item in navigationLinks"
-              :key="`menu-${item.to}`"
-              :prepend-icon="item.icon"
-              :title="item.label"
-              @click="router.push(item.to)"
-            />
-            <v-divider />
-            <v-list-item class="logout-item" prepend-icon="mdi-logout" title="Logout" @click="logout" />
-          </v-list>
-        </v-menu>
+        <button
+          class="mobile-menu-trigger"
+          type="button"
+          :aria-expanded="isMobileMenuOpen"
+          aria-label="Abrir menú"
+          @click="onMobileMenuTriggerClick"
+        >
+          <v-icon :icon="isMobileMenuOpen ? 'mdi-close' : 'mdi-menu'" size="24" />
+        </button>
       </div>
     </div>
 
@@ -328,64 +271,20 @@ function onProfileTriggerClick(): void {
   transform: translateY(-0.5px);
 }
 
-.profile-trigger {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.profile-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 999px;
-  object-fit: cover;
-  border: 1px solid rgba(166, 193, 228, 0.42);
-}
-
-.profile-avatar--fallback {
-  display: inline-grid;
-  place-items: center;
-  background: #10315f;
-  color: #f3f8ff;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.profile-menu {
-  min-width: 14.5rem;
-  border: 1px solid rgba(117, 147, 190, 0.24);
-  border-radius: 0.6rem;
-  overflow: hidden;
-  color: #edf4ff;
-}
-
-.mobile-logout {
+.mobile-menu-trigger {
   display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 0.38rem;
-  width: 100%;
-  margin-top: 0.2rem;
-  padding: 0.55rem 0.72rem;
   border: 0;
-  border-radius: 0.45rem;
+  padding: 0.3rem;
   background: transparent;
-  color: rgb(var(--v-theme-error));
-  font-weight: 600;
+  color: #edf4ff;
   cursor: pointer;
-}
-
-.mobile-logout:hover {
-  background: rgba(var(--v-theme-error), 0.14);
-}
-
-:deep(.logout-item .v-list-item-title),
-:deep(.logout-item .v-icon) {
-  color: rgb(var(--v-theme-error));
 }
 
 @media (max-width: 900px) {
+  .mobile-menu-trigger {
+    display: inline-flex;
+  }
+
   .prime-navbar {
     background: rgba(0, 5, 13, 0.84);
     backdrop-filter: blur(12px);
@@ -433,17 +332,8 @@ function onProfileTriggerClick(): void {
     width: 100%;
   }
 
-  .mobile-logout {
-    display: inline-flex;
-  }
-
   .prime-navbar__right {
     margin-left: auto;
-  }
-
-  .profile-avatar {
-    width: 2rem;
-    height: 2rem;
   }
 
   .prime-navbar__mobile-row {
