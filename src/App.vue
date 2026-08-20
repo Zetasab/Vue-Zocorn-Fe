@@ -2,10 +2,24 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import PrimeNavbar from './components/PrimeNavbar.vue'
+import { useToast } from './composables/useToast'
+import zetaMovAppLogo from './assets/ZetaMovApp.png'
+import tmdbLogo from './assets/tmdb.svg'
+
+const { isVisible: isToastVisible, message: toastMessage } = useToast()
 
 const route = useRoute()
 const showNavbar = computed(() => !['privacy-policy'].includes(String(route.name ?? '')))
-const overlayNavbarRoutes = ['home', 'search', 'my-movies', 'my-lists', 'detailed-movie']
+const overlayNavbarRoutes = [
+  'home',
+  'search',
+  'search-series',
+  'my-movies',
+  'my-series',
+  'my-lists',
+  'detailed-movie',
+  'detailed-series'
+]
 const isMobileViewport = ref(false)
 
 function updateViewport(): void {
@@ -45,6 +59,27 @@ function toggleSocialFab(): void {
 }
 
 const currentYear = new Date().getFullYear()
+
+const DISCLAIMER_STORAGE_KEY = 'disclaimer-acknowledged'
+
+function readDisclaimerAcknowledged(): boolean {
+  try {
+    return localStorage.getItem(DISCLAIMER_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+const isDisclaimerOpen = ref(!readDisclaimerAcknowledged())
+
+function acknowledgeDisclaimer(): void {
+  isDisclaimerOpen.value = false
+  try {
+    localStorage.setItem(DISCLAIMER_STORAGE_KEY, 'true')
+  } catch {
+    // localStorage unavailable, ignore
+  }
+}
 </script>
 
 <template>
@@ -57,12 +92,32 @@ const currentYear = new Date().getFullYear()
 
     <footer v-if="showNavbar" class="app-footer">
       <div class="app-footer__inner">
-        <p class="app-footer__brand">Zocorn</p>
-        <nav class="app-footer__links" aria-label="Footer links">
-          <RouterLink to="/">Inicio</RouterLink>
-          <RouterLink to="/buscar">Buscar</RouterLink>
-        </nav>
-        <p class="app-footer__copy">© {{ currentYear }} Zocorn</p>
+        <div class="app-footer__brand-col">
+          <RouterLink to="/" class="app-footer__brand-link" aria-label="Ir a Inicio">
+            <img :src="zetaMovAppLogo" alt="Zocorn" class="app-footer__brand-logo" />
+          </RouterLink>
+          <a
+            href="https://www.themoviedb.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="app-footer__tmdb-link"
+            aria-label="Datos proporcionados por TMDB"
+          >
+            <img :src="tmdbLogo" alt="TMDB" class="app-footer__tmdb-logo" />
+          </a>
+        </div>
+
+        <div class="app-footer__middle">
+          <nav class="app-footer__links" aria-label="Footer links">
+            <RouterLink to="/">Inicio</RouterLink>
+            <RouterLink to="/buscarmovies">Películas</RouterLink>
+            <RouterLink to="/buscarseries">Series</RouterLink>
+            <RouterLink to="/mis-peliculas">Mis películas</RouterLink>
+            <RouterLink to="/mis-series">Mis series</RouterLink>
+            <RouterLink to="/politica-privacidad-condiciones-uso">Política de privacidad</RouterLink>
+          </nav>
+          <p class="app-footer__copy">© {{ currentYear }} Zocorn</p>
+        </div>
       </div>
     </footer>
 
@@ -83,7 +138,7 @@ const currentYear = new Date().getFullYear()
           </a>
           <a
             class="social-fab__link"
-            href="https://github.com/Zetasab"
+            href="https://github.com/Zetasab/Vue-Zocorn-Fe"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Abrir GitHub"
@@ -97,6 +152,61 @@ const currentYear = new Date().getFullYear()
         <v-icon :icon="isSocialFabOpen ? 'mdi-close' : 'mdi-share-variant'" size="22" />
       </button>
     </div>
+
+    <v-snackbar v-model="isToastVisible" location="bottom" timeout="3000" color="#101f36">
+      {{ toastMessage }}
+    </v-snackbar>
+
+    <v-dialog v-model="isDisclaimerOpen" max-width="460" persistent>
+      <v-card class="disclaimer-dialog">
+        <v-card-title class="disclaimer-dialog__title">
+          <v-icon icon="mdi-alert-outline" size="22" />
+          <span>Aviso importante</span>
+        </v-card-title>
+
+        <v-card-text class="disclaimer-dialog__body">
+          <h3 class="disclaimer-dialog__subtitle">Proyecto personal de pruebas</h3>
+          <p>
+            Esta web es un proyecto personal, no comercial. Puede que alguna funcionalidad no se comporte
+            siempre como esperas.
+          </p>
+          <p>Si tienes cualquier problema, ponte en contacto con el administrador.</p>
+
+          <div class="disclaimer-dialog__links">
+            <a
+              class="disclaimer-dialog__link"
+              href="mailto:cesarsobworkspace@gmail.com"
+              aria-label="Enviar email"
+            >
+              <v-icon icon="mdi-email-outline" size="20" />
+            </a>
+            <a
+              class="disclaimer-dialog__link"
+              href="https://www.linkedin.com/in/cesar-sobrino-arribas-1b887021b/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Abrir LinkedIn"
+            >
+              <v-icon icon="mdi-linkedin" size="20" />
+            </a>
+            <a
+              class="disclaimer-dialog__link"
+              href="https://github.com/Zetasab/Vue-Zocorn-Fe"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Abrir GitHub"
+            >
+              <v-icon icon="mdi-github" size="20" />
+            </a>
+          </div>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="primary" variant="flat" @click="acknowledgeDisclaimer">Entiendo, continuar</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -124,23 +234,56 @@ const currentYear = new Date().getFullYear()
 .app-footer__inner {
   margin: 0 auto;
   width: min(1200px, 100%);
-  padding: 0.95rem clamp(1rem, 2.8vw, 2rem);
+  padding: 1.4rem clamp(1rem, 2.8vw, 2rem);
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 0.9rem;
+  gap: 1.5rem;
 }
 
-.app-footer__brand,
+.app-footer__brand-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.app-footer__brand-link {
+  display: inline-flex;
+}
+
+.app-footer__brand-logo {
+  width: 3.4rem;
+  height: 3.4rem;
+  object-fit: contain;
+}
+
+.app-footer__tmdb-link {
+  display: inline-flex;
+  opacity: 0.75;
+  transition: opacity 160ms ease;
+}
+
+.app-footer__tmdb-link:hover {
+  opacity: 1;
+}
+
+.app-footer__tmdb-logo {
+  width: 9rem;
+  height: auto;
+}
+
+.app-footer__middle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .app-footer__copy {
   margin: 0;
   color: #d6e2f2;
   font-size: 0.86rem;
-}
-
-.app-footer__brand {
-  font-weight: 700;
-  color: #edf4ff;
 }
 
 .app-footer__links {
@@ -227,6 +370,53 @@ const currentYear = new Date().getFullYear()
 .social-fab-panel-leave-to {
   opacity: 0;
   transform: translateY(8px) scale(0.96);
+}
+
+.disclaimer-dialog__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.disclaimer-dialog__body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.disclaimer-dialog__subtitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.disclaimer-dialog__body p {
+  margin: 0;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+
+.disclaimer-dialog__links {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+
+.disclaimer-dialog__link {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  color: #dbeafe;
+  background: rgba(37, 99, 235, 0.2);
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.disclaimer-dialog__link:hover {
+  background: rgba(37, 99, 235, 0.42);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 760px) {

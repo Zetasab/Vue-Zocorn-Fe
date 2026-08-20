@@ -78,6 +78,15 @@
   gap: 0.25rem;
 }
 
+.privacy-section a {
+  color: #7fb4ff;
+  text-decoration: underline;
+}
+
+.privacy-section a:hover {
+  color: #a9cdff;
+}
+
 @media (max-width: 680px) {
   .privacy-card {
     padding: 0.95rem;

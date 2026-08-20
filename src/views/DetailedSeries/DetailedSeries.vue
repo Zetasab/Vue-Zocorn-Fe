@@ -2,16 +2,16 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MoviesScroller from '../../components/MoviesScroller.vue'
-import { tmdbApiService } from '../../services/tmdbApiService'
+import { tmdbTvApiService } from '../../services/tmdbApiService'
 import { useYoutubeLoopingBackground } from '../../composables/useYoutubeLoopingBackground'
-import { useBookmarkedMovies } from '../../composables/useBookmarkedMovies'
+import { useBookmarkedSeries } from '../../composables/useBookmarkedSeries'
 
-type MovieGenre = {
+type SeriesGenre = {
 	id: number
 	name: string
 }
 
-type ProductionCompany = {
+type SeriesNetwork = {
 	id: number
 	logo_path: string | null
 	name: string
@@ -29,20 +29,16 @@ type SpokenLanguage = {
 	name: string
 }
 
-type MovieCollection = {
+type DetailedSeriesData = {
 	id: number
 	name: string
-	poster_path: string
-	backdrop_path: string
-}
-
-type DetailedMovieData = {
-	id: number
-	title: string
-	original_title: string
+	original_name: string
 	tagline: string
-	release_date: string
-	runtime: number | null
+	first_air_date: string
+	episode_run_time: number[]
+	number_of_seasons: number
+	number_of_episodes: number
+	in_production: boolean
 	vote_average: number
 	vote_count: number
 	popularity: number
@@ -51,41 +47,37 @@ type DetailedMovieData = {
 	overview: string
 	poster_path: string | null
 	backdrop_path: string | null
-	imdb_id: string | null
-	budget: number
-	revenue: number
 	homepage: string | null
-	genres: MovieGenre[]
-	production_companies: ProductionCompany[]
+	genres: SeriesGenre[]
+	networks: SeriesNetwork[]
 	production_countries: ProductionCountry[]
 	spoken_languages: SpokenLanguage[]
-	belongs_to_collection: MovieCollection | null
 }
 
-type MovieCastMember = {
+type SeriesCastMember = {
 	id: number
 	name: string
 	character: string
 	profile_path: string | null
 }
 
-type MovieCreditsResponse = {
-	cast: MovieCastMember[]
+type SeriesCreditsResponse = {
+	cast: SeriesCastMember[]
 }
 
-type MovieImageFile = {
+type SeriesImageFile = {
 	file_path: string
 	aspect_ratio: number
 	width: number
 	height: number
 }
 
-type MovieImagesResponse = {
-	backdrops: MovieImageFile[]
-	posters: MovieImageFile[]
+type SeriesImagesResponse = {
+	backdrops: SeriesImageFile[]
+	posters: SeriesImageFile[]
 }
 
-type MovieVideo = {
+type SeriesVideo = {
 	id: string
 	key: string
 	name: string
@@ -94,22 +86,22 @@ type MovieVideo = {
 	official: boolean
 }
 
-type MovieVideosResponse = {
-	results: MovieVideo[]
+type SeriesVideosResponse = {
+	results: SeriesVideo[]
 }
 
-type TmdbMovieListItem = {
+type TmdbSeriesListItem = {
 	id: number
-	title: string
+	name: string
 	overview: string
 	poster_path: string | null
 	backdrop_path: string | null
-	release_date: string
+	first_air_date: string
 	vote_average: number
 }
 
-type TmdbMovieListResponse = {
-	results: TmdbMovieListItem[]
+type TmdbSeriesListResponse = {
+	results: TmdbSeriesListItem[]
 }
 
 type ReviewAuthorDetails = {
@@ -119,7 +111,7 @@ type ReviewAuthorDetails = {
 	rating: number | null
 }
 
-type MovieReviewItem = {
+type SeriesReviewItem = {
 	id: string
 	author: string
 	author_details: ReviewAuthorDetails
@@ -129,11 +121,11 @@ type MovieReviewItem = {
 	url: string
 }
 
-type MovieReviewsResponse = {
-	results: MovieReviewItem[]
+type SeriesReviewsResponse = {
+	results: SeriesReviewItem[]
 }
 
-type ScrollerMovieItem = {
+type ScrollerSeriesItem = {
 	id: number
 	title: string
 	overview: string
@@ -146,71 +138,48 @@ type ScrollerMovieItem = {
 const route = useRoute()
 const router = useRouter()
 const imageBaseUrl = 'https://image.tmdb.org/t/p'
-const movie = ref<DetailedMovieData | null>(null)
-const castMembers = ref<MovieCastMember[]>([])
-const movieVideos = ref<MovieVideo[]>([])
-const galleryImages = ref<MovieImageFile[]>([])
-const recommendedMovies = ref<ScrollerMovieItem[]>([])
-const similarMovies = ref<ScrollerMovieItem[]>([])
-const movieReviews = ref<MovieReviewItem[]>([])
+const series = ref<DetailedSeriesData | null>(null)
+const castMembers = ref<SeriesCastMember[]>([])
+const seriesVideos = ref<SeriesVideo[]>([])
+const galleryImages = ref<SeriesImageFile[]>([])
+const recommendedSeries = ref<ScrollerSeriesItem[]>([])
+const similarSeries = ref<ScrollerSeriesItem[]>([])
+const seriesReviews = ref<SeriesReviewItem[]>([])
 const showHeaderVideo = ref(false)
 const headerVideoDelayProgress = ref(0)
-const isLoadingMovie = ref(false)
-const movieLoadError = ref('')
+const isLoadingSeries = ref(false)
+const seriesLoadError = ref('')
 const isImageDialogOpen = ref(false)
 const selectedImagePath = ref<string | null>(null)
 let headerVideoTimeoutId: number | undefined
 let headerVideoProgressIntervalId: number | undefined
 const HEADER_VIDEO_DELAY_MS = 5000
 
-const movieIdParam = computed(() => String(route.params.idtmdb ?? ''))
-const parsedMovieId = computed(() => Number(movieIdParam.value))
-const isMovieIdValid = computed(() => Number.isInteger(parsedMovieId.value) && parsedMovieId.value > 0)
+const seriesIdParam = computed(() => String(route.params.idtmdb ?? ''))
+const parsedSeriesId = computed(() => Number(seriesIdParam.value))
+const isSeriesIdValid = computed(() => Number.isInteger(parsedSeriesId.value) && parsedSeriesId.value > 0)
 const currentYear = new Date().getFullYear()
 const backdropUrl = computed(() => {
-	if (!movie.value?.backdrop_path) {
+	if (!series.value?.backdrop_path) {
 		return ''
 	}
 
-	return `${imageBaseUrl}/original${movie.value.backdrop_path}`
+	return `${imageBaseUrl}/original${series.value.backdrop_path}`
 })
 const watchUrl = computed(() => {
-	if (!movie.value?.id) {
+	if (!series.value?.id) {
 		return ''
 	}
 
-	return `https://www.themoviedb.org/movie/${movie.value.id}/watch?locale=ES`
+	return `https://www.themoviedb.org/tv/${series.value.id}/watch?locale=ES`
 })
-const collectionUrl = computed(() => {
-	const collectionId = movie.value?.belongs_to_collection?.id
-	if (!collectionId) {
-		return 'https://www.themoviedb.org/collection/'
-	}
-
-	return `https://www.themoviedb.org/collection/${collectionId}`
-})
-const collectionBackgroundStyle = computed(() => {
-	const collection = movie.value?.belongs_to_collection
-	if (!collection) {
-		return {}
-	}
-
-	const collectionImagePath = collection.backdrop_path || collection.poster_path
-	if (!collectionImagePath) {
-		return {}
-	}
-
-	return {
-		backgroundImage: `linear-gradient(90deg, rgba(0, 5, 13, 0.88) 0%, rgba(0, 5, 13, 0.55) 50%, rgba(0, 5, 13, 0.72) 100%), url(${imageBaseUrl}/original${collectionImagePath})`
-	}
-})
-const websiteUrl = computed(() => movie.value?.homepage?.trim() ?? '')
-const maxMoneyValue = computed(() => Math.max(movie.value?.budget ?? 0, movie.value?.revenue ?? 0, 1))
-const budgetPercent = computed(() => ((movie.value?.budget ?? 0) / maxMoneyValue.value) * 100)
-const revenuePercent = computed(() => ((movie.value?.revenue ?? 0) / maxMoneyValue.value) * 100)
-const formattedBudget = computed(() => formatCurrency(movie.value?.budget ?? 0))
-const formattedRevenue = computed(() => formatCurrency(movie.value?.revenue ?? 0))
-const ratingPercent = computed(() => Math.max(0, Math.min((movie.value?.vote_average ?? 0) * 10, 100)))
+const websiteUrl = computed(() => series.value?.homepage?.trim() ?? '')
+const maxStatsValue = computed(() =>
+	Math.max(series.value?.number_of_seasons ?? 0, series.value?.number_of_episodes ?? 0, 1)
+)
+const seasonsPercent = computed(() => ((series.value?.number_of_seasons ?? 0) / maxStatsValue.value) * 100)
+const episodesPercent = computed(() => ((series.value?.number_of_episodes ?? 0) / maxStatsValue.value) * 100)
+const ratingPercent = computed(() => Math.max(0, Math.min((series.value?.vote_average ?? 0) * 10, 100)))
 const formattedRatingPercent = computed(() => `${Math.round(ratingPercent.value)}%`)
 const ratingToneClass = computed(() => {
 	if (ratingPercent.value < 40) {
@@ -231,7 +200,7 @@ const selectedImageUrl = computed(() => {
 	return `${imageBaseUrl}/original${selectedImagePath.value}`
 })
 const featuredVideo = computed(() => {
-	const youtubeVideos = movieVideos.value.filter((video) => video.site === 'YouTube' && video.key)
+	const youtubeVideos = seriesVideos.value.filter((video) => video.site === 'YouTube' && video.key)
 	if (!youtubeVideos.length) {
 		return null
 	}
@@ -260,7 +229,7 @@ const headerPlayerElementId = computed(() => {
 		return ''
 	}
 
-	return `detailed-movie-header-yt-${featuredVideo.value.key}`
+	return `detailed-series-header-yt-${featuredVideo.value.key}`
 })
 
 const headerPlayerVideoId = computed(() => {
@@ -273,37 +242,30 @@ const headerPlayerVideoId = computed(() => {
 
 useYoutubeLoopingBackground(headerPlayerElementId, headerPlayerVideoId)
 
-const { isBookmarked, toggleBookmark } = useBookmarkedMovies()
+const { isBookmarked, toggleBookmark } = useBookmarkedSeries()
 
 function onBookmarkClick(): void {
-	if (!movie.value) {
+	if (!series.value) {
 		return
 	}
 
 	toggleBookmark({
-		id: movie.value.id,
-		title: movie.value.title,
-		poster_path: movie.value.poster_path ?? undefined,
-		release_date: movie.value.release_date,
-		vote_average: movie.value.vote_average
+		id: series.value.id,
+		title: series.value.name,
+		poster_path: series.value.poster_path ?? undefined,
+		release_date: series.value.first_air_date,
+		vote_average: series.value.vote_average
 	})
 }
-const formattedDuration = computed(() => {
-	const totalSeconds = (movie.value?.runtime ?? 0) * 60
-	const hours = Math.floor(totalSeconds / 3600)
-	const minutes = Math.floor((totalSeconds % 3600) / 60)
-	const seconds = totalSeconds % 60
 
-	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+const formattedEpisodeRuntime = computed(() => {
+	const runtimeMinutes = series.value?.episode_run_time?.[0] ?? 0
+	if (!runtimeMinutes) {
+		return 'Sin datos'
+	}
+
+	return `${runtimeMinutes} min / episodio`
 })
-
-function formatCurrency(amount: number): string {
-	return new Intl.NumberFormat('en-US', {
-		style: 'currency',
-		currency: 'USD',
-		maximumFractionDigits: 0
-	}).format(amount)
-}
 
 function companyLogoUrl(logoPath: string | null): string {
 	if (!logoPath) {
@@ -363,21 +325,21 @@ function reviewAvatarUrl(avatarPath: string | null | undefined): string {
 	return `${imageBaseUrl}/w45${avatarPath}`
 }
 
-function mapScrollerMovies(movies: TmdbMovieListItem[] | undefined): ScrollerMovieItem[] {
-	return (movies ?? [])
-		.filter((movieItem) => movieItem?.id)
-		.map((movieItem) => ({
-			id: movieItem.id,
-			title: movieItem.title ?? 'Sin título',
-			overview: movieItem.overview ?? '',
-			poster_path: movieItem.poster_path ?? undefined,
-			backdrop_path: movieItem.backdrop_path ?? undefined,
-			release_date: movieItem.release_date ?? '',
-			vote_average: movieItem.vote_average ?? 0
+function mapScrollerSeries(items: TmdbSeriesListItem[] | undefined): ScrollerSeriesItem[] {
+	return (items ?? [])
+		.filter((item) => item?.id)
+		.map((item) => ({
+			id: item.id,
+			title: item.name ?? 'Sin título',
+			overview: item.overview ?? '',
+			poster_path: item.poster_path ?? undefined,
+			backdrop_path: item.backdrop_path ?? undefined,
+			release_date: item.first_air_date ?? '',
+			vote_average: item.vote_average ?? 0
 		}))
 }
 
-function mapReviews(reviews: MovieReviewItem[] | undefined): MovieReviewItem[] {
+function mapReviews(reviews: SeriesReviewItem[] | undefined): SeriesReviewItem[] {
 	return (reviews ?? [])
 		.filter((review) => Boolean(review?.id && review?.content?.trim()))
 		.map((review) => ({
@@ -451,61 +413,61 @@ function scheduleHeaderVideo(): void {
 	}, HEADER_VIDEO_DELAY_MS)
 }
 
-async function loadMovieDetails(): Promise<void> {
-	if (!isMovieIdValid.value) {
-		movie.value = null
+async function loadSeriesDetails(): Promise<void> {
+	if (!isSeriesIdValid.value) {
+		series.value = null
 		castMembers.value = []
-		recommendedMovies.value = []
-		similarMovies.value = []
-		movieReviews.value = []
-		movieLoadError.value = 'Id de película inválido.'
+		recommendedSeries.value = []
+		similarSeries.value = []
+		seriesReviews.value = []
+		seriesLoadError.value = 'Id de serie inválido.'
 		return
 	}
 
-	isLoadingMovie.value = true
-	movieLoadError.value = ''
-	movie.value = null
+	isLoadingSeries.value = true
+	seriesLoadError.value = ''
+	series.value = null
 	castMembers.value = []
-	movieVideos.value = []
+	seriesVideos.value = []
 	galleryImages.value = []
-	recommendedMovies.value = []
-	similarMovies.value = []
-	movieReviews.value = []
+	recommendedSeries.value = []
+	similarSeries.value = []
+	seriesReviews.value = []
 	showHeaderVideo.value = false
 	clearHeaderVideoTimer()
 	selectedImagePath.value = null
 	isImageDialogOpen.value = false
 
 	try {
-		const [movieData, credits, videos, images, recommendations, similar] = await Promise.all([
-			tmdbApiService.get<DetailedMovieData>(`${parsedMovieId.value}`, { language: 'es-ES' }),
-			tmdbApiService.get<MovieCreditsResponse>(`${parsedMovieId.value}/credits`, { language: 'es-ES' }),
-			tmdbApiService.get<MovieVideosResponse>(`${parsedMovieId.value}/videos`, { language: 'es-ES' }),
-			tmdbApiService.get<MovieImagesResponse>(`${parsedMovieId.value}/images`),
-			tmdbApiService.get<TmdbMovieListResponse>(`${parsedMovieId.value}/recommendations`, { language: 'es-ES' }),
-			tmdbApiService.get<TmdbMovieListResponse>(`${parsedMovieId.value}/similar`, { language: 'es-ES' })
+		const [seriesData, credits, videos, images, recommendations, similar] = await Promise.all([
+			tmdbTvApiService.get<DetailedSeriesData>(`${parsedSeriesId.value}`, { language: 'es-ES' }),
+			tmdbTvApiService.get<SeriesCreditsResponse>(`${parsedSeriesId.value}/credits`, { language: 'es-ES' }),
+			tmdbTvApiService.get<SeriesVideosResponse>(`${parsedSeriesId.value}/videos`, { language: 'es-ES' }),
+			tmdbTvApiService.get<SeriesImagesResponse>(`${parsedSeriesId.value}/images`),
+			tmdbTvApiService.get<TmdbSeriesListResponse>(`${parsedSeriesId.value}/recommendations`, { language: 'es-ES' }),
+			tmdbTvApiService.get<TmdbSeriesListResponse>(`${parsedSeriesId.value}/similar`, { language: 'es-ES' })
 		])
 
-		movie.value = movieData
+		series.value = seriesData
 		castMembers.value = credits.cast ?? []
-		movieVideos.value = videos.results ?? []
+		seriesVideos.value = videos.results ?? []
 		const uniqueImages = [...(images.backdrops ?? []), ...(images.posters ?? [])].filter(
 			(img, index, arr) => arr.findIndex((candidate) => candidate.file_path === img.file_path) === index
 		)
 		galleryImages.value = uniqueImages.slice(0, 24)
-		recommendedMovies.value = mapScrollerMovies(recommendations.results)
-		similarMovies.value = mapScrollerMovies(similar.results)
+		recommendedSeries.value = mapScrollerSeries(recommendations.results)
+		similarSeries.value = mapScrollerSeries(similar.results)
 
-		let loadedReviews: MovieReviewItem[] = []
+		let loadedReviews: SeriesReviewItem[] = []
 
 		try {
-			const reviewsEs = await tmdbApiService.get<MovieReviewsResponse>(`${parsedMovieId.value}/reviews`, {
+			const reviewsEs = await tmdbTvApiService.get<SeriesReviewsResponse>(`${parsedSeriesId.value}/reviews`, {
 				language: 'es-ES'
 			})
 			loadedReviews = reviewsEs.results ?? []
 
 			if (!loadedReviews.length) {
-				const reviewsEn = await tmdbApiService.get<MovieReviewsResponse>(`${parsedMovieId.value}/reviews`, {
+				const reviewsEn = await tmdbTvApiService.get<SeriesReviewsResponse>(`${parsedSeriesId.value}/reviews`, {
 					language: 'en-US'
 				})
 				loadedReviews = reviewsEn.results ?? []
@@ -514,11 +476,11 @@ async function loadMovieDetails(): Promise<void> {
 			loadedReviews = []
 		}
 
-		movieReviews.value = mapReviews(loadedReviews)
+		seriesReviews.value = mapReviews(loadedReviews)
 	} catch {
-		movieLoadError.value = 'No se pudo cargar el detalle de la película.'
+		seriesLoadError.value = 'No se pudo cargar el detalle de la serie.'
 	} finally {
-		isLoadingMovie.value = false
+		isLoadingSeries.value = false
 	}
 }
 
@@ -542,7 +504,7 @@ watch(
 watch(
 	() => route.params.idtmdb,
 	() => {
-		void loadMovieDetails()
+		void loadSeriesDetails()
 	},
 	{ immediate: true }
 )
@@ -553,7 +515,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<main v-if="isLoadingMovie" class="detailed-movie-page detailed-movie-skeleton-page">
+	<main v-if="isLoadingSeries" class="detailed-movie-page detailed-movie-skeleton-page">
 		<v-skeleton-loader type="image" class="detailed-movie-header-skeleton" />
 
 		<section class="detailed-movie-container">
@@ -588,9 +550,9 @@ onBeforeUnmount(() => {
 		</section>
 	</main>
 
-	<main v-else-if="movie" class="detailed-movie-page">
+	<main v-else-if="series" class="detailed-movie-page">
 		<section class="detailed-movie-header">
-			<img v-if="movie.backdrop_path" :src="backdropUrl" :alt="`Backdrop de ${movie.title}`"
+			<img v-if="series.backdrop_path" :src="backdropUrl" :alt="`Backdrop de ${series.name}`"
 				class="detailed-movie-header-image"
 				:class="{ 'is-hidden': showHeaderVideo && Boolean(featuredVideo) }" />
 			<div v-else class="detailed-movie-header-image detailed-movie-header-image--fallback"
@@ -607,7 +569,7 @@ onBeforeUnmount(() => {
 			</div>
 			<div class="detailed-movie-title-row" @click.stop>
 				<div class="detailed-movie-title-stack">
-					<h1 class="detailed-movie-header-title">{{ movie.title }}</h1>
+					<h1 class="detailed-movie-header-title">{{ series.name }}</h1>
 					<div v-if="featuredVideo && !showHeaderVideo" class="detailed-movie-header-delay-slider"
 						aria-hidden="true">
 						<div class="detailed-movie-header-delay-slider-label">Trailer</div>
@@ -627,39 +589,39 @@ onBeforeUnmount(() => {
 					<div class="detailed-movie-meta-row">
 						<div class="detailed-movie-date-group">
 							<v-icon icon="mdi-calendar-month-outline" size="18" />
-							<p class="detailed-movie-date">{{ movie.release_date }}</p>
+							<p class="detailed-movie-date">{{ series.first_air_date }}</p>
 						</div>
 						<div class="detailed-movie-duration-group">
 							<v-icon icon="mdi-timer-outline" size="18" />
-							<p class="detailed-movie-date">{{ formattedDuration }}</p>
+							<p class="detailed-movie-date">{{ formattedEpisodeRuntime }}</p>
 						</div>
 					</div>
-					<p class="detailed-movie-description">{{ movie.overview }}</p>
+					<p class="detailed-movie-description">{{ series.overview }}</p>
 					<a class="detailed-movie-watch" :href="watchUrl" target="_blank" rel="noopener noreferrer">Ver
-						película</a>
+						serie</a>
 
 					<div class="detailed-movie-genres">
-						<span v-for="genre in movie.genres" :key="genre.id" class="genre-chip">{{ genre.name }}</span>
+						<span v-for="genre in series.genres" :key="genre.id" class="genre-chip">{{ genre.name }}</span>
 					</div>
 				</article>
 
-				<article class="detailed-movie-chart" aria-label="Comparación presupuesto y recaudación">
+				<article class="detailed-movie-chart" aria-label="Comparación temporadas y episodios">
 					<div class="detailed-movie-chart-top-row">
 						<button type="button" class="detailed-movie-bookmark-btn"
-							:class="{ 'is-bookmarked': isBookmarked(movie.id) }"
-							:aria-label="isBookmarked(movie.id) ? `Quitar ${movie.title} de guardados` : `Guardar ${movie.title}`"
+							:class="{ 'is-bookmarked': isBookmarked(series.id) }"
+							:aria-label="isBookmarked(series.id) ? `Quitar ${series.name} de guardados` : `Guardar ${series.name}`"
 							@click="onBookmarkClick">
-							<v-icon :icon="isBookmarked(movie.id) ? 'mdi-bookmark' : 'mdi-bookmark-outline'" size="20" />
+							<v-icon :icon="isBookmarked(series.id) ? 'mdi-bookmark' : 'mdi-bookmark-outline'" size="20" />
 						</button>
 
 						<div class="detailed-movie-chart-header">
 							<div class="detailed-movie-rating">
 								<div class="detailed-movie-rating-circle" :class="ratingToneClass"
 									:style="{ '--rating-percent': String(ratingPercent) }" role="img"
-									aria-label="Puntuación de la película">
+									aria-label="Puntuación de la serie">
 									<span>{{ formattedRatingPercent }}</span>
 								</div>
-								<p class="detailed-movie-rating-votes">{{ movie.vote_count }} votos</p>
+								<p class="detailed-movie-rating-votes">{{ series.vote_count }} votos</p>
 							</div>
 
 							<a v-if="websiteUrl" class="detailed-movie-site-link" :href="websiteUrl" target="_blank"
@@ -672,33 +634,33 @@ onBeforeUnmount(() => {
 
 					<div class="chart-row">
 						<div class="chart-label-row">
-							<span>Budget</span>
-							<strong>{{ formattedBudget }}</strong>
+							<span>Temporadas</span>
+							<strong>{{ series.number_of_seasons }}</strong>
 						</div>
 						<div class="chart-track">
-							<span class="chart-bar chart-bar--budget" :style="{ width: `${budgetPercent}%` }"></span>
+							<span class="chart-bar chart-bar--budget" :style="{ width: `${seasonsPercent}%` }"></span>
 						</div>
 					</div>
 
 					<div class="chart-row">
 						<div class="chart-label-row">
-							<span>Revenue</span>
-							<strong>{{ formattedRevenue }}</strong>
+							<span>Episodios</span>
+							<strong>{{ series.number_of_episodes }}</strong>
 						</div>
 						<div class="chart-track">
-							<span class="chart-bar chart-bar--revenue" :style="{ width: `${revenuePercent}%` }"></span>
+							<span class="chart-bar chart-bar--revenue" :style="{ width: `${episodesPercent}%` }"></span>
 						</div>
 					</div>
 
 					<ul class="detailed-movie-companies">
-						<li v-for="company in movie.production_companies" :key="company.id"
+						<li v-for="network in series.networks" :key="network.id"
 							class="detailed-movie-company-item">
-							<img v-if="company.logo_path" :src="companyLogoUrl(company.logo_path)" :alt="company.name"
+							<img v-if="network.logo_path" :src="companyLogoUrl(network.logo_path)" :alt="network.name"
 								class="company-logo" />
 							<span v-else class="company-logo company-logo--fallback">
 								<v-icon icon="mdi-domain" size="13" />
 							</span>
-							<span class="company-name">{{ company.name }}</span>
+							<span class="company-name">{{ network.name }}</span>
 						</li>
 					</ul>
 				</article>
@@ -736,41 +698,32 @@ onBeforeUnmount(() => {
 				<div class="detailed-movie-gallery-grid">
 					<button v-for="image in galleryImages" :key="image.file_path" class="detailed-movie-gallery-item"
 						type="button" @click="openImageDialog(image.file_path)">
-						<img :src="galleryThumbUrl(image.file_path)" alt="Imagen de la película"
+						<img :src="galleryThumbUrl(image.file_path)" alt="Imagen de la serie"
 							class="detailed-movie-gallery-img" />
 					</button>
 				</div>
 			</section>
 		</section>
-		<section v-if="movie.belongs_to_collection" class="detailed-movie-collection"
-			:style="collectionBackgroundStyle">
-			<div class="detailed-movie-collection-content">
-				<h2 class="detailed-movie-collection-title">{{ movie.belongs_to_collection.name }}</h2>
-				<a class="detailed-movie-collection-link" :href="collectionUrl" target="_blank"
-					rel="noopener noreferrer">
-					Ver colección
-				</a>
-			</div>
-		</section>
+
 		<section class="detailed-movie-container">
-			<section v-if="recommendedMovies.length" class="detailed-movie-scroller-section mt-15">
+			<section v-if="recommendedSeries.length" class="detailed-movie-scroller-section mt-15">
 				<h2 class="detailed-movie-scroller-title">Recomendadas</h2>
-				<MoviesScroller :movies="recommendedMovies" />
+				<MoviesScroller :movies="recommendedSeries" media-type="tv" />
 			</section>
 
-			<section v-if="similarMovies.length" class="detailed-movie-scroller-section mt-15">
+			<section v-if="similarSeries.length" class="detailed-movie-scroller-section mt-15">
 				<h2 class="detailed-movie-scroller-title">Similares</h2>
-				<MoviesScroller :movies="similarMovies" />
+				<MoviesScroller :movies="similarSeries" media-type="tv" />
 			</section>
 
 			<section class="detailed-movie-reviews mt-15">
 				<h2 class="detailed-movie-reviews-title">Reviews</h2>
 
-				<p v-if="!movieReviews.length" class="detailed-movie-reviews-empty">Aún no hay reviews para esta
-					película.</p>
+				<p v-if="!seriesReviews.length" class="detailed-movie-reviews-empty">Aún no hay reviews para esta
+					serie.</p>
 
 				<div v-else class="detailed-movie-reviews-grid">
-					<article v-for="review in movieReviews" :key="review.id" class="detailed-movie-review-card">
+					<article v-for="review in seriesReviews" :key="review.id" class="detailed-movie-review-card">
 						<div class="detailed-movie-review-header">
 							<div class="detailed-movie-review-author-block">
 								<img :src="reviewAvatarUrl(review.author_details.avatar_path)"
@@ -808,7 +761,7 @@ onBeforeUnmount(() => {
 				<p class="detailed-movie-footer-copy">© {{ currentYear }} Zeta Movies</p>
 				<div class="detailed-movie-footer-links">
 					<a :href="watchUrl" target="_blank" rel="noopener noreferrer">Watch</a>
-					<a :href="`https://www.themoviedb.org/movie/${movie.id}`" target="_blank"
+					<a :href="`https://www.themoviedb.org/tv/${series.id}`" target="_blank"
 						rel="noopener noreferrer">TMDB</a>
 				</div>
 			</div>
@@ -817,8 +770,8 @@ onBeforeUnmount(() => {
 
 	<main v-else class="detailed-movie-page detailed-movie-page--not-found">
 		<section class="not-found-shell">
-			<h1>{{ movieLoadError || 'No se encontró el detalle de esta película' }}</h1>
-			<p>Id solicitada: {{ movieIdParam }}</p>
+			<h1>{{ seriesLoadError || 'No se encontró el detalle de esta serie' }}</h1>
+			<p>Id solicitada: {{ seriesIdParam }}</p>
 			<a href="#" class="detailed-movie-back" @click.prevent="goBack">
 				<v-icon icon="mdi-arrow-left" size="16" />
 				<span>Volver</span>
@@ -840,4 +793,4 @@ onBeforeUnmount(() => {
 	</v-dialog>
 </template>
 
-<style scoped src="./DetailedMovie.css"></style>
+<style scoped src="../DetailedMovie/DetailedMovie.css"></style>

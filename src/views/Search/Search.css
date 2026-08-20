@@ -1,9 +1,9 @@
 .search-page {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1800px;
   box-sizing: border-box;
   margin: 0 auto;
-  padding: 6.3rem 1rem 2rem;
+  padding: 6.3rem 1.5rem 2rem;
   display: grid;
   gap: 1rem;
 }
@@ -23,16 +23,99 @@
 
 .search-form {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   min-width: 0;
+}
+
+.search-body {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.search-body--no-panel {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .search-results {
   display: grid;
   gap: 1rem;
   min-width: 0;
+}
+
+.search-filters-panel {
+  width: 21rem;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 1.1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.16);
+  background: rgba(var(--v-theme-surface), 0.9);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  position: sticky;
+  top: 6.3rem;
+}
+
+.search-filters-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.search-filters-panel-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.search-filters-panel-subtitle {
+  margin: -0.6rem 0 0;
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+
+.search-filters-panel-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0.2rem;
+  border-radius: 50%;
+  opacity: 0.75;
+}
+
+.search-filters-panel-close:hover {
+  opacity: 1;
+  background: rgba(var(--v-theme-on-surface), 0.08);
+}
+
+.search-filters-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.search-filters-fields {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.search-filters-rating {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.search-filters-rating-label {
+  font-size: 0.86rem;
+  opacity: 0.84;
 }
 
 .search-suggestions {
@@ -173,6 +256,7 @@
   .search-header,
   .search-form,
   .search-suggestions,
+  .search-body,
   .search-results,
   .search-results-list,
   .search-result-item,
@@ -185,6 +269,15 @@
 
   .search-form {
     grid-template-columns: 1fr;
+  }
+
+  .search-body {
+    grid-template-columns: 1fr;
+  }
+
+  .search-filters-panel {
+    width: 100%;
+    position: static;
   }
 
   .search-form :deep(.v-btn) {

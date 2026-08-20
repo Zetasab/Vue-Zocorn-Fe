@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useBookmarkedMovies } from '../composables/useBookmarkedMovies'
+import { useBookmarkedSeries } from '../composables/useBookmarkedSeries'
 
 interface MovieItem {
   id: number
@@ -23,9 +25,11 @@ interface MovieItem {
 const props = defineProps<{
   movies: MovieItem[]
   layout?: 'scroller' | 'grid'
+  mediaType?: 'movie' | 'tv'
 }>()
 
 const isGridLayout = computed(() => props.layout === 'grid')
+const isMovieMedia = computed(() => (props.mediaType ?? 'movie') === 'movie')
 
 const imageBaseUrl = 'https://image.tmdb.org/t/p'
 const scrollerRef = ref<HTMLDivElement | null>(null)
@@ -41,6 +45,33 @@ const DRAG_THRESHOLD_PX = 6
 const SCROLL_DELAY_MS = 70
 const isMobileViewport = ref(false)
 const loadedPosterIds = ref<Set<number>>(new Set())
+
+const { isBookmarked: isMovieBookmarked, toggleBookmark: toggleMovieBookmark } = useBookmarkedMovies()
+const { isBookmarked: isSeriesBookmarked, toggleBookmark: toggleSeriesBookmark } = useBookmarkedSeries()
+
+function isBookmarked(id: number): boolean {
+  return isMovieMedia.value ? isMovieBookmarked(id) : isSeriesBookmarked(id)
+}
+
+function onBookmarkClick(event: MouseEvent, movie: MovieItem): void {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const bookmarkPayload = {
+    id: movie.id,
+    title: movie.title,
+    poster_path: movie.poster_path,
+    posterPath: movie.posterPath,
+    release_date: movie.release_date,
+    vote_average: movie.vote_average
+  }
+
+  if (isMovieMedia.value) {
+    toggleMovieBookmark(bookmarkPayload)
+  } else {
+    toggleSeriesBookmark(bookmarkPayload)
+  }
+}
 
 function getPosterUrl(path?: string): string {
   if (!path) {
@@ -191,8 +222,9 @@ onBeforeUnmount(() => {
 
 watch(
   () => props.movies,
-  () => {
-    loadedPosterIds.value = new Set()
+  (nextMovies) => {
+    const nextIds = new Set(nextMovies.map((movie) => movie.id))
+    loadedPosterIds.value = new Set([...loadedPosterIds.value].filter((id) => nextIds.has(id)))
   },
   { immediate: true }
 )
@@ -213,9 +245,23 @@ watch(
     @dragstart.prevent
   >
     <div v-for="movie in props.movies" :key="movie.id" class="movie-card">
+      <button
+        type="button"
+        class="movie-bookmark-btn"
+        :class="{ 'is-bookmarked': isBookmarked(movie.id) }"
+        :aria-label="isBookmarked(movie.id) ? `Quitar ${movie.title} de guardados` : `Guardar ${movie.title}`"
+        @click="onBookmarkClick($event, movie)"
+        @mousedown.stop
+      >
+        <v-icon :icon="isBookmarked(movie.id) ? 'mdi-bookmark' : 'mdi-bookmark-outline'" size="18" />
+      </button>
+
       <RouterLink
         class="movie-poster-link"
-        :to="{ name: 'detailed-movie', params: { idtmdb: movie.id } }"
+        :to="{
+          name: isMovieMedia ? 'detailed-movie' : 'detailed-series',
+          params: { idtmdb: movie.id }
+        }"
         :aria-label="`Ver detalle de ${movie.title}`"
         @click="onPosterClick"
         @contextmenu="onPosterContextMenu"
@@ -292,6 +338,7 @@ watch(
 .movies-scroller--grid .movie-card {
   flex: initial;
   min-width: 0;
+  cursor: pointer;
 }
 
 .movie-card {
@@ -330,10 +377,52 @@ watch(
   opacity: 1;
 }
 
+.movie-bookmark-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(2, 10, 22, 0.65);
+  color: #f6fbff;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+.movie-card:hover .movie-bookmark-btn,
+.movie-card:focus-within .movie-bookmark-btn,
+.movie-bookmark-btn.is-bookmarked {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.movie-bookmark-btn:hover {
+  background: rgba(2, 10, 22, 0.9);
+}
+
+.movie-bookmark-btn.is-bookmarked {
+  color: #ffd166;
+}
+
+@media (max-width: 768px) {
+  .movie-bookmark-btn {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .movie-poster-link {
   position: relative;
   display: block;
   -webkit-touch-callout: none;
+  cursor: inherit;
 }
 
 .movie-poster-skeleton {

@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import MoviesScroller from '../../components/MoviesScroller.vue'
-import { tmdbApiService } from '../../services/tmdbApiService'
+import { tmdbApiService, tmdbTvApiService } from '../../services/tmdbApiService'
+import { useYoutubeLoopingBackground } from '../../composables/useYoutubeLoopingBackground'
 
 type TmdbMovie = {
   id: number
@@ -53,6 +54,21 @@ type ScrollerMovie = {
   original_language: string
 }
 
+type TmdbSeries = {
+  id: number
+  name: string
+  overview: string
+  poster_path: string | null
+  backdrop_path: string | null
+  first_air_date: string
+  vote_average: number
+  original_language: string
+}
+
+type TmdbSeriesResponse = {
+  results: TmdbSeries[]
+}
+
 const imageBaseUrl = 'https://image.tmdb.org/t/p'
 const HEADER_VIDEO_DELAY_MS = 5000
 
@@ -71,6 +87,9 @@ const topRatedMovies = ref<ScrollerMovie[]>([])
 const upcomingMovies = ref<ScrollerMovie[]>([])
 const movieGenres = ref<TmdbGenre[]>([])
 const selectedTrendWindow = ref<TrendWindow>('day')
+const popularSeries = ref<ScrollerMovie[]>([])
+const trendingSeries = ref<ScrollerMovie[]>([])
+const selectedSeriesTrendWindow = ref<TrendWindow>('day')
 const isHomeLoading = ref(true)
 let heroVideoTimeoutId: number | undefined
 let heroVideoProgressIntervalId: number | undefined
@@ -117,6 +136,19 @@ function normalizeMovie(movie: TmdbMovie): ScrollerMovie {
     release_date: movie.release_date,
     vote_average: movie.vote_average,
     original_language: movie.original_language
+  }
+}
+
+function normalizeSeries(series: TmdbSeries): ScrollerMovie {
+  return {
+    id: series.id,
+    title: series.name,
+    overview: series.overview,
+    poster_path: series.poster_path ?? '',
+    backdrop_path: series.backdrop_path ?? '',
+    release_date: series.first_air_date,
+    vote_average: series.vote_average,
+    original_language: series.original_language
   }
 }
 
@@ -193,6 +225,33 @@ async function loadMovieGenres(): Promise<void> {
   }
 }
 
+async function loadPopularSeries(): Promise<void> {
+  try {
+    const response = await tmdbTvApiService.get<TmdbSeriesResponse>('popular', {
+      language: 'es-ES',
+      page: 1
+    })
+
+    popularSeries.value = response.results.map(normalizeSeries)
+  } catch {
+    popularSeries.value = []
+  }
+}
+
+async function loadTrendingSeries(window: TrendWindow): Promise<void> {
+  selectedSeriesTrendWindow.value = window
+
+  try {
+    const response = await tmdbTvApiService.get<TmdbSeriesResponse>(`trending/${window}`, {
+      language: 'es-ES'
+    })
+
+    trendingSeries.value = response.results.map(normalizeSeries)
+  } catch {
+    trendingSeries.value = []
+  }
+}
+
 const activeHeroMovie = computed<ScrollerMovie>(() => {
   if (!heroMovies.value.length) {
     return fallbackMovie
@@ -222,14 +281,23 @@ const activeHeroVideo = computed(() => {
   return heroMovieVideosById.value[movieId] ?? null
 })
 
-const activeHeroVideoEmbedUrl = computed(() => {
-  if (!activeHeroVideo.value?.key) {
+const heroPlayerElementId = computed(() => {
+  if (!activeHeroVideo.value || !showHeroVideo.value) {
     return ''
   }
 
-  const trailerKey = activeHeroVideo.value.key
-  return `https://www.youtube.com/embed/${trailerKey}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${trailerKey}`
+  return `home-hero-yt-${activeHeroMovie.value.id}-${activeHeroVideo.value.key}`
 })
+
+const heroPlayerVideoId = computed(() => {
+  if (!activeHeroVideo.value || !showHeroVideo.value) {
+    return null
+  }
+
+  return activeHeroVideo.value.key
+})
+
+useYoutubeLoopingBackground(heroPlayerElementId, heroPlayerVideoId)
 
 const heroSlideTransitionName = computed(() => {
   return heroSlideDirection.value === 1 ? 'hero-slide-next' : 'hero-slide-prev'
@@ -280,7 +348,9 @@ onMounted(async () => {
     loadTrendingMovies('day'),
     loadTopRatedMovies(),
     loadUpcomingMovies(),
-    loadMovieGenres()
+    loadMovieGenres(),
+    loadPopularSeries(),
+    loadTrendingSeries('day')
   ])
 
   isHomeLoading.value = false
@@ -498,8 +568,38 @@ onBeforeUnmount(() => {
 <template>
   <main class="home-page">
     <section v-if="isHomeLoading" class="home-loading-state" aria-label="Cargando inicio">
-      <v-progress-circular indeterminate color="primary" size="56" width="5" />
-      <p class="home-loading-text">Cargando inicio...</p>
+      <v-skeleton-loader type="image" class="home-hero-skeleton" />
+
+      <div class="home-section">
+        <v-skeleton-loader type="text" class="home-section-title-skeleton" />
+        <div class="home-cards-skeleton-row">
+          <v-skeleton-loader
+            v-for="n in 12"
+            :key="n"
+            type="image"
+            class="home-card-skeleton"
+          />
+        </div>
+      </div>
+
+      <div class="home-section">
+        <v-skeleton-loader type="text" class="home-section-title-skeleton" />
+        <div class="home-cards-skeleton-row">
+          <v-skeleton-loader
+            v-for="n in 12"
+            :key="n"
+            type="image"
+            class="home-card-skeleton"
+          />
+        </div>
+      </div>
+
+      <div class="home-section">
+        <v-skeleton-loader type="text" class="home-section-title-skeleton" />
+        <div class="home-insights-grid">
+          <v-skeleton-loader v-for="n in 3" :key="n" type="card" class="home-insight-skeleton" />
+        </div>
+      </div>
     </section>
 
     <template v-else>
@@ -526,16 +626,14 @@ onBeforeUnmount(() => {
             aria-hidden="true"
           ></div>
 
-          <iframe
+          <div
             v-if="activeHeroVideo && showHeroVideo"
             :key="`${activeHeroMovie.id}-${activeHeroVideo.key}`"
-            :src="activeHeroVideoEmbedUrl"
-            :title="`Trailer de ${activeHeroMovie.title}`"
             class="home-hero-video"
-            frameborder="0"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            tabindex="-1"
-          ></iframe>
+            aria-hidden="true"
+          >
+            <div :id="heroPlayerElementId"></div>
+          </div>
 
           <div class="home-hero-overlay" aria-hidden="true"></div>
 
@@ -649,16 +747,37 @@ onBeforeUnmount(() => {
 
     <section class="home-section home-platforms-section">
       <div class="home-platforms-grid">
-        <div class="home-platform-card home-platform-card--netflix"></div>
-        <div class="home-platform-card home-platform-card--disney"></div>
-        <div class="home-platform-card home-platform-card--prime"></div>
-        <div class="home-platform-card home-platform-card--hbo"></div>
+        <RouterLink to="/buscarmovies" class="home-platform-card home-platform-card--netflix" aria-label="Buscar películas" />
+        <RouterLink to="/buscarmovies" class="home-platform-card home-platform-card--disney" aria-label="Buscar películas" />
+        <RouterLink to="/buscarmovies" class="home-platform-card home-platform-card--prime" aria-label="Buscar películas" />
+        <RouterLink to="/buscarmovies" class="home-platform-card home-platform-card--hbo" aria-label="Buscar películas" />
       </div>
+    </section>
+
+    <section class="home-section">
+      <h2 class="home-section-title">Series populares</h2>
+      <MoviesScroller :movies="popularSeries" media-type="tv" />
+    </section>
+
+    <section class="home-section">
+      <h2 class="home-section-title">Tendencias series</h2>
+      <v-btn-toggle
+        :model-value="selectedSeriesTrendWindow"
+        color="primary"
+        density="comfortable"
+        mandatory
+        class="mb-4"
+      >
+        <v-btn value="day" @click="loadTrendingSeries('day')">Hoy</v-btn>
+        <v-btn value="week" @click="loadTrendingSeries('week')">Esta semana</v-btn>
+      </v-btn-toggle>
+
+      <MoviesScroller :movies="trendingSeries" media-type="tv" />
     </section>
 
     <section class="home-parallax-cta" aria-label="Buscar películas">
       <div class="home-parallax-cta__overlay">
-        <RouterLink to="/buscar" class="home-parallax-cta__link">
+        <RouterLink to="/buscarmovies" class="home-parallax-cta__link">
           <v-btn color="primary" size="large" class="home-parallax-cta__button">
             Buscar peliculas si no encuentras lo que buscas
           </v-btn>
@@ -680,14 +799,15 @@ onBeforeUnmount(() => {
       <h2 class="home-section-title">Géneros TMDB</h2>
 
       <div v-if="movieGenres.length" class="home-genres-grid" aria-label="Géneros de TMDB">
-        <div
+        <RouterLink
           v-for="genre in movieGenres"
           :key="genre.id"
+          :to="{ path: '/buscarmovies', query: { genre: genre.id } }"
           class="home-genre-chip card"
           :class="getGenreBackgroundClass(genre.id)"
         >
           {{ genre.name }}
-        </div>
+        </RouterLink>
       </div>
 
       <p v-else class="home-genres-empty">No se pudieron cargar los géneros.</p>

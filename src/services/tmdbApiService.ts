@@ -1,8 +1,12 @@
-const API_BASE_PATH = '/api/movies'
-
 type QueryParams = Record<string, string | number | boolean>
 
 class TmdbApiService {
+  private readonly basePath: string
+
+  constructor(basePath: string) {
+    this.basePath = basePath
+  }
+
   async get<T>(path: string, query?: QueryParams): Promise<T> {
     const url = this.buildUrl(path, query)
     const response = await fetch(url)
@@ -27,8 +31,9 @@ class TmdbApiService {
     }
 
     const queryString = searchParams.toString()
-    return `${API_BASE_PATH}/${normalizedPath}${queryString ? `?${queryString}` : ''}`
+    return `${this.basePath}/${normalizedPath}${queryString ? `?${queryString}` : ''}`
   }
 }
 
-export const tmdbApiService = new TmdbApiService()
+export const tmdbApiService = new TmdbApiService('/api/movies')
+export const tmdbTvApiService = new TmdbApiService('/api/tv')

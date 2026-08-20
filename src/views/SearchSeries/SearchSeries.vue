@@ -2,25 +2,25 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MoviesScroller from '../../components/MoviesScroller.vue'
-import { tmdbApiService } from '../../services/tmdbApiService'
+import { tmdbTvApiService } from '../../services/tmdbApiService'
 
-type TmdbSearchMovieItem = {
+type TmdbSearchSeriesItem = {
   id: number
-  title: string
+  name: string
   overview: string
   poster_path: string | null
   backdrop_path: string | null
-  release_date: string
+  first_air_date: string
   vote_average: number
 }
 
 type TmdbSearchResponse = {
   page: number
   total_pages: number
-  results: TmdbSearchMovieItem[]
+  results: TmdbSearchSeriesItem[]
 }
 
-type ScrollerMovieItem = {
+type ScrollerSeriesItem = {
   id: number
   title: string
   overview: string
@@ -30,11 +30,11 @@ type ScrollerMovieItem = {
   vote_average: number
 }
 
-type MovieListFilter = 'now_playing' | 'popular' | 'top_rated' | 'upcoming'
+type SeriesListFilter = 'on_the_air' | 'popular' | 'top_rated' | 'airing_today'
 
-type MovieListOption = {
+type SeriesListOption = {
   label: string
-  value: MovieListFilter
+  value: SeriesListFilter
 }
 
 type TmdbGenre = {
@@ -60,10 +60,10 @@ type AdvancedFilters = {
 }
 
 const query = ref('')
-const selectedList = ref<MovieListFilter>('popular')
+const selectedList = ref<SeriesListFilter>('popular')
 const currentPage = ref(1)
 const totalPages = ref(1)
-const movies = ref<ScrollerMovieItem[]>([])
+const series = ref<ScrollerSeriesItem[]>([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const route = useRoute()
@@ -77,13 +77,13 @@ const YEAR_PARAM_KEY = 'year'
 const RATING_PARAM_KEY = 'rating'
 const LANG_PARAM_KEY = 'lang'
 const SORT_PARAM_KEY = 'sort'
-const FILTERS_PANEL_STORAGE_KEY = 'search-filters-panel-open'
+const FILTERS_PANEL_STORAGE_KEY = 'search-series-filters-panel-open'
 
-const movieListOptions: MovieListOption[] = [
-  { label: 'Del momento', value: 'now_playing' },
+const seriesListOptions: SeriesListOption[] = [
+  { label: 'Del momento', value: 'on_the_air' },
   { label: 'Populares', value: 'popular' },
   { label: 'Mejor valoradas', value: 'top_rated' },
-  { label: 'Estreno', value: 'upcoming' }
+  { label: 'Estreno', value: 'airing_today' }
 ]
 
 const sortOptions: SortOption[] = [
@@ -91,8 +91,8 @@ const sortOptions: SortOption[] = [
   { label: 'Popularidad (asc)', value: 'popularity.asc' },
   { label: 'Valoración (desc)', value: 'vote_average.desc' },
   { label: 'Valoración (asc)', value: 'vote_average.asc' },
-  { label: 'Fecha de estreno (desc)', value: 'primary_release_date.desc' },
-  { label: 'Fecha de estreno (asc)', value: 'primary_release_date.asc' }
+  { label: 'Fecha de estreno (desc)', value: 'first_air_date.desc' },
+  { label: 'Fecha de estreno (asc)', value: 'first_air_date.asc' }
 ]
 
 const languageOptions = [
@@ -158,7 +158,7 @@ let searchDebounceTimeoutId: number | undefined
 
 async function loadGenreOptions(): Promise<void> {
   try {
-    const response = await tmdbApiService.get<TmdbGenresResponse>('genres', { language: 'es-ES' })
+    const response = await tmdbTvApiService.get<TmdbGenresResponse>('genres', { language: 'es-ES' })
     genreOptions.value = response.genres
   } catch {
     genreOptions.value = []
@@ -169,14 +169,14 @@ onMounted(() => {
   void loadGenreOptions()
 })
 
-function normalizeMovie(item: TmdbSearchMovieItem): ScrollerMovieItem {
+function normalizeSeries(item: TmdbSearchSeriesItem): ScrollerSeriesItem {
   return {
     id: item.id,
-    title: item.title,
+    title: item.name,
     overview: item.overview,
     poster_path: item.poster_path ?? '',
     backdrop_path: item.backdrop_path ?? '',
-    release_date: item.release_date,
+    release_date: item.first_air_date,
     vote_average: item.vote_average
   }
 }
@@ -192,11 +192,11 @@ function parseRoutePage(value: unknown): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1
 }
 
-function parseRouteList(value: unknown): MovieListFilter {
+function parseRouteList(value: unknown): SeriesListFilter {
   const rawValue = Array.isArray(value) ? value[0] : value
-  const parsed = String(rawValue ?? '').trim() as MovieListFilter
+  const parsed = String(rawValue ?? '').trim() as SeriesListFilter
 
-  if (movieListOptions.some((item) => item.value === parsed)) {
+  if (seriesListOptions.some((item) => item.value === parsed)) {
     return parsed
   }
 
@@ -244,7 +244,7 @@ function hasAnyFilterParam(routeQuery: Record<string, unknown>): boolean {
 async function updateRouteQuery(
   text: string,
   page: number,
-  list: MovieListFilter,
+  list: SeriesListFilter,
   filters: AdvancedFilters | null = null
 ): Promise<boolean> {
   const normalizedText = text.trim()
@@ -323,7 +323,7 @@ async function updateRouteQuery(
   return true
 }
 
-async function searchMovies(text: string, page = 1, list: MovieListFilter = 'popular'): Promise<void> {
+async function searchSeries(text: string, page = 1, list: SeriesListFilter = 'popular'): Promise<void> {
   const normalizedText = text.trim()
   const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1
   const normalizedList = parseRouteList(list)
@@ -335,7 +335,7 @@ async function searchMovies(text: string, page = 1, list: MovieListFilter = 'pop
     let response: TmdbSearchResponse
 
     if (normalizedText) {
-      response = await tmdbApiService.get<TmdbSearchResponse>('search', {
+      response = await tmdbTvApiService.get<TmdbSearchResponse>('search', {
         query: normalizedText,
         language: 'es-ES',
         include_adult: false,
@@ -343,27 +343,27 @@ async function searchMovies(text: string, page = 1, list: MovieListFilter = 'pop
       })
     } else if (useAdvancedFilters.value) {
       const filters = advancedFilters.value
-      response = await tmdbApiService.get<TmdbSearchResponse>('discover', {
+      response = await tmdbTvApiService.get<TmdbSearchResponse>('discover', {
         language: 'es-ES',
         page: normalizedPage,
         sort_by: filters.sortBy,
         ...(filters.genreId !== null ? { with_genres: filters.genreId } : {}),
-        ...(filters.year !== null ? { primary_release_year: filters.year } : {}),
+        ...(filters.year !== null ? { first_air_date_year: filters.year } : {}),
         ...(filters.minRating !== null ? { 'vote_average.gte': filters.minRating } : {}),
         ...(filters.originalLanguage ? { with_original_language: filters.originalLanguage } : {})
       })
     } else {
-      response = await tmdbApiService.get<TmdbSearchResponse>(normalizedList, {
+      response = await tmdbTvApiService.get<TmdbSearchResponse>(normalizedList, {
         language: 'es-ES',
         page: normalizedPage
       })
     }
 
-    movies.value = response.results.map(normalizeMovie)
+    series.value = response.results.map(normalizeSeries)
     currentPage.value = response.page
     totalPages.value = Math.max(1, Math.min(response.total_pages, 500))
   } catch {
-    movies.value = []
+    series.value = []
     totalPages.value = 1
     currentPage.value = 1
     errorMessage.value = 'No se pudieron cargar resultados desde la API.'
@@ -390,7 +390,7 @@ async function onSearchClick(): Promise<void> {
   )
 
   if (!didChangeRoute) {
-    await searchMovies(text, 1, selectedList.value)
+    await searchSeries(text, 1, selectedList.value)
   }
 }
 
@@ -412,7 +412,7 @@ function onPageChange(page: number): void {
   )
 }
 
-function onQuickListClick(list: MovieListFilter): void {
+function onQuickListClick(list: SeriesListFilter): void {
   clearSearchDebounce()
   query.value = ''
   selectedList.value = list
@@ -441,7 +441,7 @@ function applyFilters(): void {
   const didChangeRoute = updateRouteQuery('', 1, selectedList.value, advancedFilters.value)
   void didChangeRoute.then((changed) => {
     if (!changed) {
-      void searchMovies('', 1, selectedList.value)
+      void searchSeries('', 1, selectedList.value)
     }
   })
 }
@@ -454,7 +454,7 @@ function clearFilters(): void {
   const didChangeRoute = updateRouteQuery(query.value.trim(), 1, selectedList.value, null)
   void didChangeRoute.then((changed) => {
     if (!changed) {
-      void searchMovies(query.value.trim(), 1, selectedList.value)
+      void searchSeries(query.value.trim(), 1, selectedList.value)
     }
   })
 }
@@ -483,7 +483,7 @@ watch(
     draftFilters.value = parsedFilters
     useAdvancedFilters.value = filtersActive
 
-    void searchMovies(parsedText, parsedPage, parsedList)
+    void searchSeries(parsedText, parsedPage, parsedList)
   },
   { immediate: true }
 )
@@ -504,15 +504,15 @@ onBeforeUnmount(() => {
 <template>
   <main class="search-page">
     <section class="search-header">
-      <h1 class="search-title">Buscar películas</h1>
+      <h1 class="search-title">Buscar series</h1>
       <p class="search-subtitle">Busca por nombre o por listas disponibles.</p>
     </section>
 
     <section class="search-form">
       <v-text-field
         :model-value="query"
-        label="Nombre de película"
-        placeholder="Ej: Interstellar"
+        label="Nombre de serie"
+        placeholder="Ej: Breaking Bad"
         variant="outlined"
         density="comfortable"
         hide-details
@@ -537,7 +537,7 @@ onBeforeUnmount(() => {
       <p class="search-suggestions-label">Búsqueda rápida</p>
       <div class="search-suggestions-list">
         <v-btn
-          v-for="option in movieListOptions"
+          v-for="option in seriesListOptions"
           :key="option.value"
           size="small"
           rounded="pill"
@@ -550,91 +550,90 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-
     <section class="search-body" :class="{ 'search-body--no-panel': !isFiltersPanelOpen }">
       <aside v-if="isFiltersPanelOpen" class="search-filters-panel">
-          <div class="search-filters-panel-header">
-            <h2 class="search-filters-panel-title">Filtros</h2>
-            <button
-              type="button"
-              class="search-filters-panel-close"
-              aria-label="Cerrar filtros"
-              @click="closeFiltersPanel"
-            >
-              <v-icon icon="mdi-close" size="18" />
-            </button>
-          </div>
-          <p class="search-filters-panel-subtitle">Filtros avanzados vía TheMovieDB (discover)</p>
+        <div class="search-filters-panel-header">
+          <h2 class="search-filters-panel-title">Filtros</h2>
+          <button
+            type="button"
+            class="search-filters-panel-close"
+            aria-label="Cerrar filtros"
+            @click="closeFiltersPanel"
+          >
+            <v-icon icon="mdi-close" size="18" />
+          </button>
+        </div>
+        <p class="search-filters-panel-subtitle">Filtros avanzados vía TheMovieDB (discover)</p>
 
-          <div class="search-filters-fields">
-            <v-select
-              v-model="draftFilters.genreId"
-              :items="genreOptions"
-              item-title="name"
-              item-value="id"
-              label="Género"
-              variant="outlined"
-              density="comfortable"
-              clearable
-              hide-details
-            />
+        <div class="search-filters-fields">
+          <v-select
+            v-model="draftFilters.genreId"
+            :items="genreOptions"
+            item-title="name"
+            item-value="id"
+            label="Género"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            hide-details
+          />
 
-            <v-text-field
-              v-model.number="draftFilters.year"
-              label="Año de estreno"
-              type="number"
-              variant="outlined"
-              density="comfortable"
-              clearable
-              hide-details
-            />
+          <v-text-field
+            v-model.number="draftFilters.year"
+            label="Año de estreno"
+            type="number"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            hide-details
+          />
 
-            <div class="search-filters-rating">
-              <span class="search-filters-rating-label">
-                Valoración mínima: {{ draftFilters.minRating ?? 0 }}
-              </span>
-              <v-slider
-                v-model="draftMinRating"
-                :min="0"
-                :max="10"
-                :step="0.5"
-                thumb-label
-                hide-details
-              />
-            </div>
-
-            <v-select
-              v-model="draftFilters.originalLanguage"
-              :items="languageOptions"
-              item-title="label"
-              item-value="value"
-              label="Idioma original"
-              variant="outlined"
-              density="comfortable"
-              hide-details
-            />
-
-            <v-select
-              v-model="draftFilters.sortBy"
-              :items="sortOptions"
-              item-title="label"
-              item-value="value"
-              label="Ordenar por"
-              variant="outlined"
-              density="comfortable"
+          <div class="search-filters-rating">
+            <span class="search-filters-rating-label">
+              Valoración mínima: {{ draftFilters.minRating ?? 0 }}
+            </span>
+            <v-slider
+              v-model="draftMinRating"
+              :min="0"
+              :max="10"
+              :step="0.5"
+              thumb-label
               hide-details
             />
           </div>
 
-          <div class="search-filters-panel-actions">
-            <v-btn variant="text" @click="clearFilters">Limpiar</v-btn>
-            <v-btn color="primary" variant="flat" @click="applyFilters">Aplicar filtros</v-btn>
-          </div>
+          <v-select
+            v-model="draftFilters.originalLanguage"
+            :items="languageOptions"
+            item-title="label"
+            item-value="value"
+            label="Idioma original"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+          />
+
+          <v-select
+            v-model="draftFilters.sortBy"
+            :items="sortOptions"
+            item-title="label"
+            item-value="value"
+            label="Ordenar por"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+          />
+        </div>
+
+        <div class="search-filters-panel-actions">
+          <v-btn variant="text" @click="clearFilters">Limpiar</v-btn>
+          <v-btn color="primary" variant="flat" @click="applyFilters">Aplicar filtros</v-btn>
+        </div>
       </aside>
 
       <section class="search-results">
         <p v-if="!isLoading && !errorMessage" class="search-results-summary">
-          {{ movies.length }} resultado(s) · Página {{ currentPage }} de {{ totalPages }}
+          {{ series.length }} resultado(s) · Página {{ currentPage }} de {{ totalPages }}
         </p>
 
         <v-alert v-if="errorMessage" type="error" variant="tonal" density="comfortable">
@@ -657,12 +656,12 @@ onBeforeUnmount(() => {
           </article>
         </div>
 
-        <v-alert v-else-if="!movies.length" type="info" variant="tonal" density="comfortable">
-          {{ query.trim() ? 'No se encontraron películas para esa búsqueda.' : 'No se encontraron resultados para la lista seleccionada.' }}
+        <v-alert v-else-if="!series.length" type="info" variant="tonal" density="comfortable">
+          {{ query.trim() ? 'No se encontraron series para esa búsqueda.' : 'No se encontraron resultados para la lista seleccionada.' }}
         </v-alert>
 
         <template v-else>
-          <MoviesScroller :movies="movies" layout="grid" />
+          <MoviesScroller :movies="series" layout="grid" media-type="tv" />
 
           <div v-if="totalPages > 1" class="search-pagination">
             <v-pagination
@@ -679,4 +678,4 @@ onBeforeUnmount(() => {
   </main>
 </template>
 
-<style scoped src="./Search.css"></style>
+<style scoped src="../Search/Search.css"></style>

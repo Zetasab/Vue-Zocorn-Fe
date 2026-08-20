@@ -9,10 +9,35 @@ const isMobileMenuOpen = ref(false)
 const isMobileViewport = ref(false)
 const isScrolled = ref(false)
 
-const navigationLinks = computed(() => [
-  { label: 'Inicio', to: '/', icon: 'mdi-home-outline' },
-  { label: 'Buscar', to: '/buscar', icon: 'mdi-magnify' }
+const primaryLinks = computed(() => [{ label: 'Inicio', to: '/', icon: 'mdi-home-outline' }])
+const secondaryLinks = computed(() => [
+  { label: 'Mis películas', to: '/mis-peliculas', icon: 'mdi-bookmark-outline' },
+  { label: 'Mis series', to: '/mis-series', icon: 'mdi-bookmark-outline' }
 ])
+
+type MoviesMenuItem = {
+  label: string
+  query?: Record<string, string>
+}
+
+const moviesMenuItems: MoviesMenuItem[] = [
+  { label: 'Del momento', query: { list: 'now_playing' } },
+  { label: 'Populares', query: { list: 'popular' } },
+  { label: 'Mejor valoradas', query: { list: 'top_rated' } },
+  { label: 'Estreno', query: { list: 'upcoming' } },
+  { label: 'Buscar más' }
+]
+
+const seriesMenuItems: MoviesMenuItem[] = [
+  { label: 'Del momento', query: { list: 'on_the_air' } },
+  { label: 'Populares', query: { list: 'popular' } },
+  { label: 'Mejor valoradas', query: { list: 'top_rated' } },
+  { label: 'Estreno', query: { list: 'airing_today' } },
+  { label: 'Buscar más' }
+]
+
+const isMoviesActive = computed(() => route.path === '/buscarmovies')
+const isSeriesActive = computed(() => route.path === '/buscarseries')
 
 watch(
   () => route.fullPath,
@@ -75,7 +100,7 @@ function onMobileMenuTriggerClick(): void {
 
       <div class="prime-navbar__links" :class="{ 'is-open': isMobileMenuOpen }">
         <RouterLink
-          v-for="item in navigationLinks"
+          v-for="item in primaryLinks"
           :key="item.to"
           :to="item.to"
           class="nav-link"
@@ -85,6 +110,64 @@ function onMobileMenuTriggerClick(): void {
           <span>{{ item.label }}</span>
         </RouterLink>
 
+        <v-menu location="bottom start" :close-on-content-click="true">
+          <template #activator="{ props: menuActivatorProps }">
+            <button
+              type="button"
+              class="nav-link nav-link--menu"
+              :class="{ 'is-active': isMoviesActive }"
+              v-bind="menuActivatorProps"
+            >
+              <v-icon icon="mdi-movie-search-outline" size="18" class="nav-link__icon" />
+              <span>Películas</span>
+              <v-icon icon="mdi-chevron-down" size="16" class="nav-link__chevron" />
+            </button>
+          </template>
+
+          <v-list density="compact" class="movies-submenu">
+            <v-list-item
+              v-for="item in moviesMenuItems"
+              :key="item.label"
+              :to="{ path: '/buscarmovies', query: item.query ?? {} }"
+              :title="item.label"
+            />
+          </v-list>
+        </v-menu>
+
+        <v-menu location="bottom start" :close-on-content-click="true">
+          <template #activator="{ props: menuActivatorProps }">
+            <button
+              type="button"
+              class="nav-link nav-link--menu"
+              :class="{ 'is-active': isSeriesActive }"
+              v-bind="menuActivatorProps"
+            >
+              <v-icon icon="mdi-television-classic" size="18" class="nav-link__icon" />
+              <span>Series</span>
+              <v-icon icon="mdi-chevron-down" size="16" class="nav-link__chevron" />
+            </button>
+          </template>
+
+          <v-list density="compact" class="movies-submenu">
+            <v-list-item
+              v-for="item in seriesMenuItems"
+              :key="item.label"
+              :to="{ path: '/buscarseries', query: item.query ?? {} }"
+              :title="item.label"
+            />
+          </v-list>
+        </v-menu>
+
+        <RouterLink
+          v-for="item in secondaryLinks"
+          :key="item.to"
+          :to="item.to"
+          class="nav-link"
+          :class="{ 'is-active': route.path === item.to }"
+        >
+          <v-icon :icon="item.icon" size="18" class="nav-link__icon" />
+          <span>{{ item.label }}</span>
+        </RouterLink>
       </div>
 
       <div></div>
@@ -109,7 +192,66 @@ function onMobileMenuTriggerClick(): void {
       aria-label="Navegación móvil rápida"
     >
       <RouterLink
-        v-for="item in navigationLinks"
+        v-for="item in primaryLinks"
+        :key="`mobile-row-${item.to}`"
+        :to="item.to"
+        class="mobile-row-link"
+        :class="{ 'is-active': route.path === item.to }"
+      >
+        <v-icon :icon="item.icon" size="16" />
+        <span>{{ item.label }}</span>
+      </RouterLink>
+
+      <v-menu location="bottom start" :close-on-content-click="true">
+        <template #activator="{ props: menuActivatorProps }">
+          <button
+            type="button"
+            class="mobile-row-link mobile-row-link--menu"
+            :class="{ 'is-active': isMoviesActive }"
+            v-bind="menuActivatorProps"
+          >
+            <v-icon icon="mdi-movie-search-outline" size="16" />
+            <span>Películas</span>
+            <v-icon icon="mdi-chevron-down" size="14" />
+          </button>
+        </template>
+
+        <v-list density="compact" class="movies-submenu">
+          <v-list-item
+            v-for="item in moviesMenuItems"
+            :key="`mobile-${item.label}`"
+            :to="{ path: '/buscarmovies', query: item.query ?? {} }"
+            :title="item.label"
+          />
+        </v-list>
+      </v-menu>
+
+      <v-menu location="bottom start" :close-on-content-click="true">
+        <template #activator="{ props: menuActivatorProps }">
+          <button
+            type="button"
+            class="mobile-row-link mobile-row-link--menu"
+            :class="{ 'is-active': isSeriesActive }"
+            v-bind="menuActivatorProps"
+          >
+            <v-icon icon="mdi-television-classic" size="16" />
+            <span>Series</span>
+            <v-icon icon="mdi-chevron-down" size="14" />
+          </button>
+        </template>
+
+        <v-list density="compact" class="movies-submenu">
+          <v-list-item
+            v-for="item in seriesMenuItems"
+            :key="`mobile-series-${item.label}`"
+            :to="{ path: '/buscarseries', query: item.query ?? {} }"
+            :title="item.label"
+          />
+        </v-list>
+      </v-menu>
+
+      <RouterLink
+        v-for="item in secondaryLinks"
         :key="`mobile-row-${item.to}`"
         :to="item.to"
         class="mobile-row-link"
@@ -263,6 +405,25 @@ function onMobileMenuTriggerClick(): void {
 .nav-link__icon {
   opacity: 0.9;
   transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.nav-link--menu {
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.nav-link__chevron {
+  opacity: 0.75;
+}
+
+.mobile-row-link--menu {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #eaf2ff;
+  font: inherit;
+  cursor: pointer;
 }
 
 .nav-link:hover .nav-link__icon,
