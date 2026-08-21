@@ -1,6 +1,6 @@
 <h1 align="center">
   <span style="color:#E50914">🎬</span>
-  <span style="color:#FFFFFF"> CesarSob</span><span style="color:#E50914">Movies</span>
+  <span style="color:#FFFFFF"> Zocorn</span><span style="color:#E50914">Movies</span>
 </h1>
 
 <p align="center">
@@ -9,6 +9,14 @@
 
 <p align="center">
   <img src="videoproject.gif" alt="Demo del proyecto" width="100%" />
+</p>
+
+### Documentación técnica
+
+<p align="left">
+  <a href="docs/DOCUMENTACION_TECNICA.pdf"><strong>📄 Documentación Técnica (PDF)</strong></a>
+  <br/>
+  <a href="docs/MANUAL_USUARIO.pdf"><strong>📘 Manual de Usuario (PDF)</strong></a>
 </p>
 
 ---
