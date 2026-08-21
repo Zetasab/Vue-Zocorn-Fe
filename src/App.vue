@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import PrimeNavbar from './components/PrimeNavbar.vue'
 import { useToast } from './composables/useToast'
+import { startVisitTracking } from './services/visitTrackingService'
 import zetaMovAppLogo from './assets/ZetaMovApp.png'
 import tmdbLogo from './assets/tmdb.svg'
 
@@ -34,6 +35,7 @@ function updateViewport(): void {
 onMounted(() => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
+  startVisitTracking()
 })
 
 onUnmounted(() => {
